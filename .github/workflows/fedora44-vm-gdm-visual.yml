@@ -1,0 +1,39 @@
+name: Fedora 44 graphical GDM screenshot evidence (disposable VM)
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - experimental/gnome50-lockscreen
+    paths:
+      - .github/workflows/fedora44-vm-gdm-visual.yml
+      - scripts/fedora44_vm_graphical_gdm_check.sh
+      - scripts/qemu_capture_greeter.py
+
+permissions:
+  contents: read
+
+concurrency:
+  group: veilpaper-fedora44-graphical-gdm-evidence
+  cancel-in-progress: true
+
+jobs:
+  graphical-gdm-evidence:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate graphical evidence harness syntax
+        run: |
+          bash -n scripts/fedora44_vm_graphical_gdm_check.sh
+          python3 -m py_compile scripts/qemu_capture_greeter.py
+      - name: Start virtual GPU GNOME greeter and collect guest-only wallpaper captures
+        run: bash scripts/fedora44_vm_graphical_gdm_check.sh
+      - name: Preserve QEMU display screenshots for independent visual review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fedora44-gnome-gdm-greeter-screenshots
+          path: ${{ runner.temp }}/veilpaper-gdm-visual/*.png
+          retention-days: 3
+          if-no-files-found: warn
