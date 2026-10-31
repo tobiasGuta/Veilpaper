@@ -34,7 +34,13 @@ assert app.register(None), 'GTK app registration failed'
 window = VeilpaperWindow(app)
 assert window.get_title() == 'Veilpaper'
 assert not window._apply.get_sensitive(), 'Apply must be disabled without selection'
-assert 'login' in window._login_detail.get_text().lower() or window._login_detail.get_text()
+assert window._content_clamp.get_maximum_size() == 900, 'Main content must be width-limited'
+assert window._content_clamp.get_child() is not None, 'Content must be attached to clamp'
+for preview in (window._lock_picture, window._login_picture):
+    assert preview.get_content_fit() == Gtk.ContentFit.CONTAIN, 'Wallpaper must not be cropped'
+    assert preview.get_can_shrink(), 'Image must fit smaller displays'
+    assert preview.get_alternative_text(), 'Preview needs accessible text'
+assert window._login_detail.get_text(), 'Login status must be visible'
 window.close()
 print('PASS: Fedora 44 GTK4/libadwaita UI created and validated via virtual display.')
 print('NOTE: no actual GNOME Wayland desktop, GDM, or wallpaper modification was tested.')
