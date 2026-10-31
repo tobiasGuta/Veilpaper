@@ -59,6 +59,8 @@ for preview in (window._lock_picture, window._login_picture):
     assert preview.get_content_fit() == Gtk.ContentFit.CONTAIN, 'Wallpaper must not be cropped'
     assert preview.get_can_shrink(), 'Image must fit smaller displays'
     assert preview.get_alternative_text(), 'Preview needs accessible text'
+assert not window._login_details.get_sensitive(), 'Details must be hidden until verified'
+assert not window._candidate_path_label.get_text(), 'No stale path before building'
 assert not window._login_prepare.get_sensitive(), 'Login candidate build requires explicit image selection'
 assert 'candidate' in window._login_progress.get_text().lower(), 'Build-only guidance required'
 assert window._login_choose.get_label() == 'Choose image…', 'Login image picker missing'
@@ -68,6 +70,9 @@ window._show_current_login(None)
 assert window._pending_login is None, 'Show current must discard the pending selection'
 assert not window._login_prepare.get_sensitive(), 'Reset must disable preparation'
 assert window._login_candidate is None, 'Reset must clear selected candidate'
+assert not window._login_details.get_sensitive(), 'Reset must disable candidate details'
+assert not window._candidate_digest_label.get_text(), 'Reset must clear stale candidate hash'
+
 assert window._login_detail.get_text(), 'Login status must be visible'
 window.close()
 print('PASS: Fedora 44 GTK4/libadwaita UI created and validated via virtual display.')
