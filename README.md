@@ -21,12 +21,39 @@ Veilpaper is an experimental GNOME wallpaper manager that controls **GDM login**
 | First-time GDM install review | New read-only, fail-closed resource/RPM verification; no live installer or authorization |
 | One-command user launcher | **PASS:** installed `~/.local/bin/veilpaper` on Fedora 44, ran status, lock set, and RPM baseline with no GDM writes |
 | Fedora 44 stock-RPM integration | **PASS** in isolated container: stock RPM, portable candidate build, first-time install-check, five transaction simulations, unchanged GDM theme |
-| Native GNOME GUI (GTK4 + libadwaita) | **Visual PASS:** GUI opened on Fedora 44 GNOME Wayland, lock/login previews and extension/GDM status visible; full interaction regression pending |
+| Native GNOME GUI (GTK4 + libadwaita) | **Lock workflow visually PASS** on Fedora 44 GNOME Wayland; login selection and candidate compilation added, host testing pending |
 | Install/restore across machines | **Not ready** |
 
 The login tool requires a specific verified original GDM checksum. It will refuse unknown host originals, and that is intentional. **Do not apply the login theme tool on another system.**
 
 The lock extension uses GNOME Shell private APIs. Full regression tests—including normal password unlock, extension disable, upgrade effects, and SELinux behavior—remain outstanding.
+
+## Build a login wallpaper candidate through the GUI (experimental)
+
+The GUI now offers a new, **build-only** workflow under the Login screen card:
+**Choose image → Build candidate**. It accepts PNG/JPEG and GNOME-readable
+images such as WebP (normalized to real PNG), previews the selected image and
+builds an independently checked GDM resource from a theme matching the
+installed RPM database. No root privileges are requested.
+
+A successful build saves a candidate to a private path such as:
+`~/.cache/veilpaper/login-candidates/prepared-*/candidate.gresource`,
+mode `0600`. The GUI displays that path and its SHA-256 digest. The
+application does **not** install this candidate, replace GDM, restart the
+display manager, or modify any existing GDM backup/state. The prior
+login-screen image remains active until a separately reviewed and authorized
+installer is qualified.
+
+This works even when the development host already has a customized login
+screen, provided an independent backup still matches the installed RPM. The
+candidate is checked *against the stock baseline*, not treated as a
+first-time installation authorization. Old candidate files remain in the
+user cache; remove them manually when no longer needed. Do not use the
+legacy host-specific `login apply` to install one of these candidates.
+
+The GUI bundle manifest is now **v3** and bundles the portable builder and
+candidate reviewer. Its installer remains able to safely uninstall v1/v2
+application bundles before upgrading.
 
 ## Native GNOME GUI prototype
 
