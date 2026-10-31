@@ -16,13 +16,16 @@ class QEMUHarnessContracts(unittest.TestCase):
         cls.script = SCRIPT.read_text()
         cls.workflow = WORKFLOW.read_text()
 
-    def test_host_only_gitHub_ephemeral_runner_and_kvm(self):
+    def test_host_only_github_ephemeral_runner_and_full_qemu_vm(self):
         self.assertIn('GITHUB_ACTIONS', self.script)
         self.assertIn('RUNNER_TEMP', self.script)
         self.assertIn('RUNNER_OS', self.script)
         self.assertIn('/dev/kvm', self.script)
-        self.assertIn('-machine accel=kvm', self.script)
-        self.assertNotIn('accel=tcg', self.script)
+        self.assertIn('accel=kvm', self.script)
+        self.assertIn('accel=tcg', self.script)
+        self.assertIn('-machine "accel=$accel"', self.script)
+        self.assertIn('qemu-system-x86_64', self.script)
+        self.assertNotIn('docker run', self.script)
 
     def test_pinned_official_fedora_cloud_image(self):
         self.assertIn('Fedora-Cloud-Base-Generic-44-1.7.x86_64.qcow2', self.script)
