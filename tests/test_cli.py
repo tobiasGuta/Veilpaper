@@ -75,6 +75,16 @@ class LockCLITests(unittest.TestCase):
             portable.assert_called_once_with(
                 Path('/tmp/wallpaper.png'), Path('/tmp/candidate.gresource'))
 
+    def test_portable_build_error_returns_failure_exit_code(self):
+        error = RuntimeError('refusing unverified RPM baseline')
+        with patch.object(vp, 'portable_build_login', side_effect=error), \
+             patch.object(vp, 'gdm', side_effect=AssertionError('must not load writer')), \
+             contextlib.redirect_stderr(io.StringIO()) as errors:
+            result = vp.main(['login', 'portable-build',
+                '/tmp/wallpaper.png', '--output', '/tmp/candidate.gresource'])
+        self.assertEqual(result, 1)
+        self.assertIn('refusing unverified RPM baseline', errors.getvalue())
+
     def test_portable_build_refuses_sudo(self):
         with patch.object(vp.os, 'geteuid', return_value=0):
             with self.assertRaisesRegex(RuntimeError, 'not with sudo'):
