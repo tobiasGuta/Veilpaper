@@ -82,5 +82,74 @@ class RealVMCrashInjectorTests(unittest.TestCase):
         self.assertEqual(journal.read_bytes(), b'prepared')
 
 
+    def test_unsupported_checkpoint_refused_before_vm_gate(self):
+        fake = SimpleNamespace(gate=lambda: self.fail('unexpected gate'))
+        with self.assertRaisesRegex(RuntimeError, 'unsupported'):
+            inject.inject_checkpoint(fake, 'not-a-checkpoint')
+
+    def test_restore_checkpoint_rejects_candidate_before_vm_gate(self):
+        fake = SimpleNamespace(gate=lambda: self.fail('unexpected gate'))
+        with self.assertRaisesRegex(RuntimeError, 'forbids candidate'):
+            inject.inject_checkpoint(fake, 'restore-intent', self.theme)
+
+    def test_install_checkpoint_requires_candidate_before_vm_gate(self):
+        fake = SimpleNamespace(gate=lambda: self.fail('unexpected gate'))
+        with self.assertRaisesRegex(RuntimeError, 'requires a candidate'):
+            inject.inject_checkpoint(fake, 'install-intent')
+
+    @unittest.skipUnless(hasattr(os, 'fork'), 'Needs POSIX SIGKILL')
+    def test_all_real_checkpoint_hooks_die_after_selected_durable_step(self):
+        # All paths here are private TemporaryDirectory fixtures, not GDM.
+        import json
+        scenarios = {
+            'install-intent': ('install-prepared', b'original'),
+            'install-swap': ('install-prepared', b'candidate'),
+            'restore-intent': ('restore-prepared', b'candidate'),
+            'restore-swap': ('restore-prepared', b'original'),
+        }
+        for checkpoint, (phase, active) in scenarios.items():
+            with self.subTest(checkpoint=checkpoint):
+                target = Path(self.temp.name) / ('theme-' + checkpoint)
+                journal = Path(self.temp.name) / ('state-' + checkpoint)
+                target.write_bytes(b'original' if checkpoint.startswith('install') else b'candidate')
+                fake = SimpleNamespace(THEME=target, gate=lambda: None)
+
+                def write_journal(state):
+                    journal.write_text(json.dumps(state))
+
+                def write_resource(path, data, **kwargs):
+                    Path(path).write_bytes(data)
+
+                fake._write_state = write_journal
+                fake._atomic = write_resource
+
+                def do_install(candidate):
+                    fake._write_state({'phase': 'install-prepared'})
+                    fake._atomic(fake.THEME, b'candidate')
+                    fake._write_state({'phase': 'installed'})
+
+                def do_restore():
+                    fake._write_state({'phase': 'restore-prepared'})
+                    fake._atomic(fake.THEME, b'original')
+                    fake._write_state({'phase': 'restored'})
+
+                fake.install = do_install
+                fake.restore = do_restore
+                pid = os.fork()
+                if pid == 0:
+                    try:
+                        inject.inject_checkpoint(fake, checkpoint,
+                                                 target if checkpoint.startswith('install') else None)
+                    except BaseException:
+                        os._exit(99)
+                    os._exit(98)
+                waited, status = os.waitpid(pid, 0)
+                self.assertEqual(waited, pid)
+                self.assertTrue(os.WIFSIGNALED(status))
+                self.assertEqual(os.WTERMSIG(status), signal.SIGKILL)
+                self.assertEqual(json.loads(journal.read_text())['phase'], phase)
+                self.assertEqual(target.read_bytes(), active)
+
+
 if __name__ == '__main__':
     unittest.main()
