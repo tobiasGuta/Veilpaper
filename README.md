@@ -13,7 +13,8 @@ Veilpaper is an experimental GNOME wallpaper manager that controls **GDM login**
 | GDM login wallpaper | **Visual PASS** after reboot: Fedora 44, GNOME Shell 50.6, GDM 50.3 |
 | Lock wallpaper extension | **Visual PASS** after `Super+L` on the same laptop; enabled and ACTIVE |
 | Unified entry point | **CLI status PASS** on Fedora 44; lock image conversion completed; **6/6 CLI unit tests PASS** |
-| Lock image handling | Source was WebP despite `.png` filename; converted to genuine PNG on Fedora 44; post-conversion lock-screen visual check pending |
+| Lock image handling | **Visual PASS** after real WebP-to-PNG conversion; resulting file identified as `image/png` |
+| GDM portability preflight | Read-only structural inspection implemented; not a generic apply or restore mechanism |
 | Install/restore across machines | **Not ready** |
 
 The login tool requires a specific verified original GDM checksum. It will refuse unknown host originals, and that is intentional. **Do not apply the login theme tool on another system.**
@@ -43,9 +44,12 @@ The `lock set` operation leaves any existing lock image intact if conversion fai
 
 The `lock install` subcommand copies the packaged GNOME extension into the user extension directory, but **does not enable it or restart GNOME**. If an existing extension differs, it refuses to overwrite it.
 
+The new `login preflight` inspects compiled resources and CSS, reports any existing Veilpaper state, and **never modifies files**. A structurally valid resource is **not** proof that the file is an unmodified package original. The eventual installer needs a verified stock baseline and independent recovery design for each target system.
+
 Two-phase GDM login customization, **only on the previously verified host**:
 
 ```bash
+python3 veilpaper.py login preflight  # read-only, recognizes existing customizations
 python3 veilpaper.py login status
 python3 veilpaper.py login build /absolute/path/to/login.png --output /tmp/veilpaper-candidate.gresource
 # Carefully review and back up first. Applying writes a system file:
@@ -60,6 +64,7 @@ The CLI deliberately does **not** automatically log users out, restart GDM, or i
 
 - `veilpaper.py`: unified development CLI (one user command)
 - `experiments/gdm/fedora_wallpaper_manager_v02.py`: validated, host-specific GDM backend
+- `experiments/gdm/preflight.py`: read-only GNOME 50 theme structure/ownership-independent inspection
 - `experiments/lockscreen/lockscreen/`: GNOME 50 extension JavaScript and metadata
 - `tests/test_cli.py`: isolated CLI regression tests
 - `experiments/lockscreen/tests/`: extension static tests
