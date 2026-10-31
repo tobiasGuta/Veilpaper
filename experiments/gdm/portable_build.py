@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import importlib.util
 import os
+import shutil
 from pathlib import Path
 import tempfile
 import xml.etree.ElementTree as ET
@@ -114,8 +115,19 @@ def build(image, output, *, theme=THEME, backup=BACKUP):
             raise RuntimeError('Stock baseline changed during build.')
         if select_baseline(theme, backup) != (baseline, baseline_hash):
             raise RuntimeError('Installed RPM baseline changed during build.')
-        # Link into place without clobbering another process's candidate.
-        os.link(compiled, output)
+        # Stage on OUTPUT's own filesystem, then publish with a no-clobber
+        # hardlink. A direct hardlink from /tmp can fail across filesystems.
+        fd, stage = tempfile.mkstemp(prefix='.veilpaper-stage-', dir=str(output.parent))
+        try:
+            with os.fdopen(fd, 'wb') as target, compiled.open('rb') as source:
+                shutil.copyfileobj(source, target)
+                target.flush()
+                os.fsync(target.fileno())
+            os.chmod(stage, 0o644)
+            os.link(stage, output)
+        finally:
+            if os.path.lexists(stage):
+                os.unlink(stage)
     print(f'Portable candidate built: {output}')
     print(f'RPM-matching baseline: {baseline}')
     print(f'Baseline SHA-256: {baseline_hash}')
