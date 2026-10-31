@@ -1,0 +1,27 @@
+name: Veilpaper checks
+
+on:
+  push:
+    branches:
+      - experimental/gnome50-lockscreen
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  python-unit-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Compile Python sources
+        run: python -m compileall -q veilpaper.py experiments/gdm tests
+      - name: Test manager and offline GDM fixtures
+        run: python -m unittest discover -s tests -v
+      - name: Test lock extension metadata and auth-hook boundaries
+        run: python -m unittest discover -s experiments/lockscreen/tests -v
