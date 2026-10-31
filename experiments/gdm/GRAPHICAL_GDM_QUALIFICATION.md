@@ -64,3 +64,13 @@ The laptop's original login-screen customization must remain unchanged.
 The production GUI has no GDM Apply action and remains intentionally blocked.
 
 [Open the graphical experiment workflow](https://github.com/tobiasGuta/Veilpaper/actions/workflows/fedora44-vm-gdm-visual.yml)
+
+## First graphical CI attempt: BLOCKED (October 31, 2026)
+
+[Graphical run 41249966043](https://github.com/tobiasGuta/Veilpaper/actions/runs/41249966043) **FAILED**, specifically at the **greeter-process identity check**. Fedora GNOME packages, RPM verification, wallpaper candidate preparation, and previous read-only fixture recovery checks passed. The guest reported a running `gdm.service` but did **not** create a GNOME Shell process under the GDM account. No pre-install screenshot was captured and no real resource swap was reached. This does **not** invalidate the independently passing GDM installation/recovery full-VM tests.
+
+Likely setup factor, not yet proven as root cause: this experiment installed GNOME packages into an already booted Fedora Cloud guest and enabled GDM without first rebooting into its new `graphical.target` default.
+
+A [second isolated run](https://github.com/tobiasGuta/Veilpaper/actions/runs/41252582148) now requires a full clean VM reboot **after graphical packages are installed and before any theme write**, with a different kernel boot ID, before testing GDM. If the greeter still fails to start, the harness collects guest `loginctl` seat status, DRM devices, GDM user processes, system and GDM journals, and one **diagnostic-no-greeter.png** capture through QMP if possible. That diagnostic image must **never** be called a passing greeter screenshot.
+
+Graphical PASS remains withheld until the actual guest's GDM greeter is visible, the four original stage screenshots are captured and independently reviewed, and the original theme is restored and RPM-verified.
