@@ -15,6 +15,7 @@ import tempfile
 ROOT = Path(__file__).resolve().parent
 GDM_BACKEND = ROOT / 'experiments/gdm/fedora_wallpaper_manager_v02.py'
 GDM_PREFLIGHT = ROOT / 'experiments/gdm/preflight.py'
+GDM_RPM_BASELINE = ROOT / 'experiments/gdm/rpm_baseline.py'
 EXTENSION_SOURCE = ROOT / 'experiments/lockscreen/lockscreen'
 UUID = 'lockscreen@veilpaper.tobiasguta'
 MAX_IMAGE_BYTES = 25 * 1024 * 1024
@@ -196,6 +197,16 @@ def preflight_login():
     return module.show(module.inspect())
 
 
+def baseline_login():
+    """Compare installed compiled theme and backup to RPM metadata (read-only)."""
+    spec = importlib.util.spec_from_file_location('veilpaper_rpm_baseline', GDM_RPM_BASELINE)
+    if spec is None or spec.loader is None:
+        fail(f'GDM RPM baseline inspector missing: {GDM_RPM_BASELINE}')
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.show(module.inspect())
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     subs = parser.add_subparsers(dest='command', required=True)
@@ -218,6 +229,7 @@ def main(argv=None):
     login_sub.add_parser('restore', help='Restore original GDM resource with sudo')
     login_sub.add_parser('status', help='Inspect GDM theme and recovery state')
     login_sub.add_parser('preflight', help='Inspect GDM theme portability without changes')
+    login_sub.add_parser('baseline', help='Compare active theme and backup to installed RPM metadata (read-only)')
     args = parser.parse_args(argv)
     try:
         if args.command == 'lock':
@@ -232,6 +244,8 @@ def main(argv=None):
         elif args.command == 'login':
             if args.action == 'preflight':
                 return preflight_login()
+            if args.action == 'baseline':
+                return baseline_login()
             backend = gdm()
             if args.action == 'build':
                 backend.build(args.image.expanduser(), args.output.expanduser())
