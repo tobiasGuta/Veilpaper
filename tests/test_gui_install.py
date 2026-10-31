@@ -7,6 +7,9 @@ from unittest.mock import patch
 from io import StringIO
 import contextlib
 import os
+import json
+import hashlib
+import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location('veilpaper_gui_installer', ROOT / 'scripts/gui_install.py')
@@ -39,7 +42,40 @@ class GUIInstallTests(unittest.TestCase):
         self.assertIn('Exec=', text)
         self.assertIn(str(self.launcher), text)
         self.assertIn('gui/veilpaper_gui.py', self.launcher.read_text())
+        icon = self.app / installer.ICON_BUNDLE_PATH
+        self.assertTrue(icon.is_file())
+        self.assertIn(f'Icon={icon}', text)
+        self.assertEqual(ET.parse(icon).getroot().tag,
+                         '{http://www.w3.org/2000/svg}svg')
         self.assertTrue((self.app / 'veilpaper.py').exists())
+
+    def test_existing_v1_bundle_can_still_be_uninstalled_for_upgrade(self):
+        self._install()
+        icon = self.app / installer.ICON_BUNDLE_PATH
+        icon.unlink()
+        icon.parent.rmdir()
+        desktop = self.desktop.read_text()
+        lines = ['Icon=preferences-desktop-wallpaper' if line.startswith('Icon=')
+                 else line for line in desktop.splitlines()]
+        self.desktop.write_text('\\n'.join(lines) + '\\n')
+        manifest = self.app / installer.MANIFEST
+        record = json.loads(manifest.read_text())
+        record['format'] = 1
+        del record['files'][installer.ICON_BUNDLE_PATH]
+        record['desktop'] = hashlib.sha256(self.desktop.read_bytes()).hexdigest()
+        manifest.write_text(json.dumps(record))
+        self.assertEqual(installer.check(self.prefix), ('INSTALLED', []))
+        with contextlib.redirect_stdout(StringIO()):
+            installer.uninstall(self.prefix)
+        self.assertEqual(installer.check(self.prefix), ('NOT_INSTALLED', []))
+
+    def test_custom_icon_modification_prevents_uninstall(self):
+        self._install()
+        icon = self.app / installer.ICON_BUNDLE_PATH
+        icon.write_text('changed icon')
+        with self.assertRaisesRegex(installer.GUIInstallError, 'INCONSISTENT'):
+            installer.uninstall(self.prefix)
+        self.assertTrue(self.desktop.exists())
 
     def test_uninstall_preserves_existing_cli_and_wallpaper(self):
         other_cli = self.prefix / 'bin/veilpaper'
