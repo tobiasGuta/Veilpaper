@@ -264,7 +264,8 @@ def main(argv=None):
             if args.action == 'baseline':
                 return baseline_login()
             if args.action == 'portable-build':
-                return portable_build_login(args.image.expanduser(), args.output.expanduser())
+                portable_build_login(args.image.expanduser(), args.output.expanduser())
+                return 0
             backend = gdm()
             if args.action == 'build':
                 backend.build(args.image.expanduser(), args.output.expanduser())
