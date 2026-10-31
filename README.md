@@ -31,7 +31,7 @@ The lock extension uses GNOME Shell private APIs. Full regression tests—includ
 
 ## VM-only qualification and candidate details (experimental)
 
-**Verified CI checkpoint (October 31, 2026):** [108 Python tests PASS](https://github.com/tobiasGuta/Veilpaper/actions/runs/41238946006), [GTK4/libadwaita GUI smoke PASS](https://github.com/tobiasGuta/Veilpaper/actions/runs/41238946075), and [Fedora container VM-gate refusal PASS](https://github.com/tobiasGuta/Veilpaper/actions/runs/41238756416). The VM admission tool has **not yet run inside a true disposable Fedora VM**, and there has been **no system GDM installation** in this phase.
+**Verified CI checkpoint (October 31, 2026):** [131 Python tests PASS](https://github.com/tobiasGuta/Veilpaper/actions/runs/41244248255) and [Fedora 44 full-VM read-only admission plus SIGKILL fixture recovery PASS](https://github.com/tobiasGuta/Veilpaper/actions/runs/41240345815). The new [VM-only REAL GDM transaction trial](experiments/gdm/REAL_GDM_VM_TRIAL.md) is separate, and its [install/reboot/restore workflow](https://github.com/tobiasGuta/Veilpaper/actions/runs/41244248252) must pass before any real-resource qualification is claimed. The GUI still cannot install a login wallpaper.
 
 
 
@@ -50,10 +50,10 @@ recovery simulations. It outputs a report with install_performed: False.
 
 See [the disposable VM qualification runbook](experiments/gdm/VM_QUALIFICATION.md)
 for an isolated guest-only procedure. **It must not be run or marked on the
-main laptop. No privileged installer exists yet**, and the GUI still cannot
-install a login wallpaper. The real theme-swap/crash-recovery experiment in a
-snapshot-backed Fedora VM remains the next separately reviewed development
-step.
+main laptop. The only privileged writer is a **separately marked,
+disposable-VM-only experiment**; it is NOT a general installer and the GUI
+still cannot install a login wallpaper. Even a successful guest test will
+not prove graphical GDM operation, emergency recovery, or power-loss safety.
 
 ## Build a login wallpaper candidate through the GUI (experimental)
 
