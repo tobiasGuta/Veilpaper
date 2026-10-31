@@ -34,8 +34,11 @@ assert app.register(None), 'GTK app registration failed'
 window = VeilpaperWindow(app)
 assert window.get_title() == 'Veilpaper'
 assert not window._apply.get_sensitive(), 'Apply must be disabled without selection'
-assert window._content_clamp.get_maximum_size() == 900, 'Main content must be width-limited'
+assert window._content_clamp.get_maximum_size() == 1210, 'Dashboard must have a readable maximum width'
 assert window._content_clamp.get_child() is not None, 'Content must be attached to clamp'
+assert window._cards.get_orientation() == Gtk.Orientation.HORIZONTAL, 'Wide layout must be two-column'
+assert window._lock_badge.get_text(), 'Lock extension badge must display a status'
+assert not window._apply.get_sensitive(), 'Applying without a chosen image must stay disabled'
 for preview in (window._lock_picture, window._login_picture):
     assert preview.get_content_fit() == Gtk.ContentFit.CONTAIN, 'Wallpaper must not be cropped'
     assert preview.get_can_shrink(), 'Image must fit smaller displays'
