@@ -12,7 +12,8 @@ Veilpaper is an experimental GNOME wallpaper manager that controls **GDM login**
 | --- | --- |
 | GDM login wallpaper | **Visual PASS** after reboot: Fedora 44, GNOME Shell 50.6, GDM 50.3 |
 | Lock wallpaper extension | **Visual PASS** after `Super+L` on the same laptop; enabled and ACTIVE |
-| Unified entry point | Python CLI implemented; offline unit tests pass; **not yet tested on the user's live installation** |
+| Unified entry point | **CLI status PASS** on Fedora 44; lock image conversion completed; **6/6 CLI unit tests PASS** |
+| Lock image handling | Source was WebP despite `.png` filename; converted to genuine PNG on Fedora 44; post-conversion lock-screen visual check pending |
 | Install/restore across machines | **Not ready** |
 
 The login tool requires a specific verified original GDM checksum. It will refuse unknown host originals, and that is intentional. **Do not apply the login theme tool on another system.**
