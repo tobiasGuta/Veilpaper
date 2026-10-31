@@ -92,7 +92,7 @@ def _sync_dir(directory):
         os.close(fd)
 
 
-def _atomic(path, data, *, mode=0o600, owner=None, xattrs=None):
+def _atomic(path, data, *, mode=0o600, owner=None, xattrs=None, mtime_ns=None):
     """Atomic durable publication on same filesystem as destination."""
     if path.is_symlink():
         raise LabBlocked(f'Refusing symlink destination: {path}')
@@ -107,7 +107,14 @@ def _atomic(path, data, *, mode=0o600, owner=None, xattrs=None):
             os.chown(stage, *owner)
         for name, value in (xattrs or {}).items():
             os.setxattr(stage, name, value)
-        # Metadata and label changes also precede the atomic swap.
+        if mtime_ns is not None:
+            # The packaged RPM verifies mtime as well as size/checksum/mode.
+            # Stamp the SAME-FILESYSTEM staging inode before publishing it,
+            # never afterward, to avoid an installed-but-unstamped crash window.
+            staged = os.stat(stage, follow_symlinks=False)
+            os.utime(stage, ns=(staged.st_atime_ns, mtime_ns),
+                     follow_symlinks=False)
+        # Metadata, label and original mtime precede the atomic swap.
         with open(stage, 'rb') as stream:
             os.fsync(stream.fileno())
         os.replace(stage, path)
@@ -122,7 +129,8 @@ def _metadata(theme):
     # Preserve exact SELinux label and all currently readable xattrs.
     attrs = {name: os.getxattr(theme, name) for name in os.listxattr(theme)}
     return {'uid': info.st_uid, 'gid': info.st_gid,
-            'mode': stat.S_IMODE(info.st_mode), 'xattrs': attrs}
+            'mode': stat.S_IMODE(info.st_mode), 'mtime_ns': info.st_mtime_ns,
+            'xattrs': attrs}
 
 
 def _verify_meta(theme, meta):
@@ -132,6 +140,8 @@ def _verify_meta(theme, meta):
         raise LabBlocked('Theme uid/gid/mode changed unexpectedly')
     if {name: os.getxattr(theme, name) for name in os.listxattr(theme)} != meta['xattrs']:
         raise LabBlocked('Theme SELinux/xattr metadata differs from original')
+    if info.st_mtime_ns != meta['mtime_ns']:
+        raise LabBlocked('Theme RPM modification timestamp differs from original')
 
 
 def _check_marker():
@@ -189,13 +199,14 @@ def _state():
     except (ValueError, UnicodeError) as exc:
         raise LabBlocked(f'Unparseable transaction state: {exc}') from exc
     expected = {'version', 'phase', 'base', 'candidate', 'uid', 'gid', 'mode',
-                'selinux_hex', 'resource'}
+                'selinux_hex', 'resource', 'mtime_ns'}
     if (not isinstance(record, dict) or set(record) != expected or
-            record['version'] != 1 or
+            record['version'] != 2 or
             record['phase'] not in ('install-prepared', 'installed',
                                     'restore-prepared', 'restored') or
             not all(isinstance(record[key], str) and len(record[key]) == 64
-                    for key in ('base', 'candidate'))):
+                    for key in ('base', 'candidate')) or
+            type(record['mtime_ns']) is not int or record['mtime_ns'] < 0):
         raise LabBlocked('Unexpected transaction state schema')
     return record
 
@@ -211,16 +222,18 @@ def _meta_from_state(record):
     if record['selinux_hex']:
         attrs['security.selinux'] = bytes.fromhex(record['selinux_hex'])
     return {'uid': record['uid'], 'gid': record['gid'],
-            'mode': record['mode'], 'xattrs': attrs}
+            'mode': record['mode'], 'mtime_ns': record['mtime_ns'],
+            'xattrs': attrs}
 
 
 def _record(base, candidate, meta, resource):
     attrs = meta['xattrs']
     if set(attrs).difference({'security.selinux'}):
         raise LabBlocked('Unexpected theme xattrs; refusing to lose metadata')
-    return {'version': 1, 'phase': 'install-prepared',
+    return {'version': 2, 'phase': 'install-prepared',
             'base': _sha(base), 'candidate': _sha(candidate),
             'uid': meta['uid'], 'gid': meta['gid'], 'mode': meta['mode'],
+            'mtime_ns': meta['mtime_ns'],
             'selinux_hex': attrs.get('security.selinux', b'').hex(),
             'resource': resource}
 
@@ -261,7 +274,8 @@ def install(candidate):
         _write_state(record)  # install-prepared, durable journal
         # One atomic rename in package directory; never changes unrelated files.
         _atomic(THEME, selected, mode=meta['mode'],
-                owner=(meta['uid'], meta['gid']), xattrs=meta['xattrs'])
+                owner=(meta['uid'], meta['gid']), xattrs=meta['xattrs'],
+                mtime_ns=meta['mtime_ns'])
         if _sha(_bytes(THEME)) != record['candidate']:
             raise LabBlocked('Candidate checksum mismatch after swap')
         _verify_meta(THEME, meta)
@@ -294,7 +308,8 @@ def restore():
         record['phase'] = 'restore-prepared'
         _write_state(record)
         _atomic(THEME, base, mode=meta['mode'],
-                owner=(meta['uid'], meta['gid']), xattrs=meta['xattrs'])
+                owner=(meta['uid'], meta['gid']), xattrs=meta['xattrs'],
+                mtime_ns=meta['mtime_ns'])
         if _sha(_bytes(THEME)) != record['base']:
             raise LabBlocked('Restored GDM checksum mismatch')
         _verify_meta(THEME, meta)
