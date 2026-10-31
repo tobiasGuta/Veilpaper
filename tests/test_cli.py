@@ -67,6 +67,12 @@ class LockCLITests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, 'not with sudo'):
                 vp.set_lock(Path('any.png'))
 
+    def test_login_preflight_dispatch_does_not_load_writer(self):
+        with patch.object(vp, 'preflight_login', return_value=0) as scan, \
+             patch.object(vp, 'gdm', side_effect=AssertionError('must not load writer')):
+            self.assertEqual(vp.main(['login', 'preflight']), 0)
+            scan.assert_called_once_with()
+
     def test_expected_cli_groups(self):
         with contextlib.redirect_stdout(io.StringIO()):
             with self.assertRaises(SystemExit) as err:
