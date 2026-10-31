@@ -60,11 +60,14 @@ def _embedded_paintable(payload: bytes, mime: str):
 
 
 class VeilpaperWindow(Adw.ApplicationWindow):
+    """Adaptive GNOME dashboard with image-first panels and safe actions."""
+
     def __init__(self, application):
         super().__init__(application=application, title='Veilpaper')
-        self.set_default_size(780, 790)
-        self.set_size_request(420, 470)
+        self.set_default_size(1160, 760)
+        self.set_size_request(430, 520)
         self._pending: Path | None = None
+        self._install_styles()
 
         overlay = Adw.ToastOverlay()
         self.set_content(overlay)
@@ -74,51 +77,69 @@ class VeilpaperWindow(Adw.ApplicationWindow):
         overlay.set_child(toolbar)
         header = Adw.HeaderBar()
         toolbar.add_top_bar(header)
-
         refresh = Gtk.Button(icon_name='view-refresh-symbolic')
-        refresh.set_tooltip_text('Refresh wallpaper status')
+        refresh.set_tooltip_text('Refresh screen status')
         refresh.connect('clicked', lambda _: self._refresh())
         header.pack_end(refresh)
 
         scroll = Gtk.ScrolledWindow()
         scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         toolbar.set_content(scroll)
-        # Keep controls readable on maximized/ultrawide GNOME desktops.
-        # The clamp automatically centers the content while remaining
-        # responsive as the window narrows.
+
         self._content_clamp = Adw.Clamp()
-        self._content_clamp.set_maximum_size(900)
-        self._content_clamp.set_tightening_threshold(700)
+        self._content_clamp.set_maximum_size(1210)
+        self._content_clamp.set_tightening_threshold(950)
         scroll.set_child(self._content_clamp)
-        viewport = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=18)
+
+        viewport = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=20)
         viewport.set_margin_top(28)
-        viewport.set_margin_bottom(30)
-        viewport.set_margin_start(26)
-        viewport.set_margin_end(26)
+        viewport.set_margin_bottom(26)
+        viewport.set_margin_start(24)
+        viewport.set_margin_end(24)
         self._content_clamp.set_child(viewport)
 
-        heading = _label('Your screens. Your wallpapers.', 'title-1', wrap=True)
-        viewport.append(heading)
-        subtitle = _label(
-            'Choose a lock-screen image independently from your desktop and login backgrounds.',
-            'dim-label', wrap=True)
-        viewport.append(subtitle)
+        hero = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        hero.add_css_class('veilpaper-hero')
+        viewport.append(hero)
+        eyebrow = _label('PERSONALIZE YOUR GNOME SCREENS', 'caption')
+        eyebrow.add_css_class('dim-label')
+        hero.append(eyebrow)
+        hero.append(_label('Make every screen yours.', 'title-1', wrap=True))
+        hero.append(_label(
+            'Independent wallpapers for your lock screen and the screen you sign in to.',
+            'dim-label', wrap=True))
 
-        # Lock screen — fully functional user-level actions.
-        lock = self._card(viewport, 'Lock screen',
-            'Choose, preview and apply an image. The desktop wallpaper stays unchanged.')
-        self._lock_picture, self._lock_icon = self._preview(lock, 'Lock screen wallpaper preview')
+        self._cards = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=16)
+        viewport.append(self._cards)
+
+        # libadwaita breakpoint: two columns on a wide display, one column on
+        # narrow windows. No custom window size handlers or display polling.
+        narrow = Adw.Breakpoint.new(Adw.BreakpointCondition.parse('max-width: 920sp'))
+        narrow.add_setter(self._cards, 'orientation', Gtk.Orientation.VERTICAL)
+        self.add_breakpoint(narrow)
+
+        lock, lock_content = self._card(
+            self._cards, 'Lock screen', 'screen-locked-symbolic',
+            'Your personal screen whenever you lock your device.', 'Ready')
+        self._lock_badge = lock_content
+        self._lock_picture, self._lock_icon = self._preview(
+            lock, 'Complete preview of the lock-screen wallpaper')
         self._lock_status = _label('', 'dim-label', wrap=True)
         lock.append(self._lock_status)
+
+        # A primary action to choose a picture, then an explicit, disabled
+        # until staged Apply button. Restore remains a secondary action.
         actions = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        actions.set_halign(Gtk.Align.START)
+        self._lock_actions = actions
+        actions.add_css_class('veilpaper-actions')
         lock.append(actions)
 
         choose = Gtk.Button(label='Choose image…')
+        choose.set_tooltip_text('Select a local image without applying it yet')
         choose.connect('clicked', self._choose_lock)
         actions.append(choose)
 
-        self._apply = Gtk.Button(label='Apply to lock screen')
+        self._apply = Gtk.Button(label='Apply wallpaper')
         self._apply.add_css_class('suggested-action')
         self._apply.set_sensitive(False)
         self._apply.connect('clicked', self._apply_lock)
@@ -128,68 +149,136 @@ class VeilpaperWindow(Adw.ApplicationWindow):
         restore.connect('clicked', self._restore_lock)
         actions.append(restore)
 
-        # Login screen — intentionally read-only until the system installer
-        # is qualified in a real isolated Fedora VM.
-        login = self._card(viewport, 'Login screen',
-            'GDM uses a system resource. Viewing it is safe; applying changes is not ready.')
-        self._login_picture, self._login_icon = self._preview(login, 'Login wallpaper preview')
-        self._login_status = _label('', wrap=True)
+        login, _login_badge = self._card(
+            self._cards, 'Login screen', 'system-lock-screen-symbolic',
+            'The background displayed before you sign in.', 'VIEW ONLY',
+            muted=True)
+        self._login_picture, self._login_icon = self._preview(
+            login, 'Complete preview of the GDM login wallpaper')
+        self._login_status = _label('', 'heading', wrap=True)
         login.append(self._login_status)
         self._login_detail = _label('', 'dim-label', wrap=True)
         login.append(self._login_detail)
-        disabled_button = Gtk.Button(label='Login wallpaper editing — coming later')
+
+        disabled_button = Gtk.Button(label='Editing available in a future version')
         disabled_button.set_sensitive(False)
-        disabled_button.set_halign(Gtk.Align.START)
         disabled_button.set_tooltip_text(
-            'Requires a portable GDM installer with verified rollback and safe privileges')
+            'GDM editing requires a separately qualified, safely authorized installer')
+        disabled_button.set_halign(Gtk.Align.START)
         login.append(disabled_button)
 
-        footnote = _label(
-            'Experimental GNOME 50 application • No GDM changes, admin password or reboot.',
-            'dim-label', wrap=True)
-        viewport.append(footnote)
+        footer = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        footer.add_css_class('veilpaper-footer')
+        viewport.append(footer)
+        footer.append(Gtk.Image.new_from_icon_name('security-high-symbolic'))
+        footer.append(_label(
+            'Your desktop wallpaper stays unchanged. Login screen editing is read-only.',
+            'dim-label', wrap=True))
+
+        # Additional responsive rule for the lock action row when the window
+        # is particularly narrow, avoiding hidden controls or horizontal scroll.
+        compact = Adw.Breakpoint.new(Adw.BreakpointCondition.parse('max-width: 580sp'))
+        compact.add_setter(self._lock_actions, 'orientation', Gtk.Orientation.VERTICAL)
+        self.add_breakpoint(compact)
+
         self._refresh()
 
-    def _card(self, parent, title, description):
+    def _install_styles(self):
+        # Theme-aware styling: use GNOME's colors instead of fixed light/dark
+        # backgrounds. Widgets remain usable with default system appearance.
+        css = b"""
+            .veilpaper-hero { padding: 16px 4px 8px 4px; }
+            .veilpaper-hero .caption { font-weight: 700; letter-spacing: 1px; font-size: 0.8em; }
+            .veilpaper-panel { border-radius: 14px; }
+            .veilpaper-preview {
+                background: alpha(@window_fg_color, 0.035);
+                border: 1px solid alpha(@window_fg_color, 0.08);
+                border-radius: 10px;
+            }
+            .veilpaper-status {
+                padding: 4px 10px;
+                border-radius: 99px;
+                background: alpha(@accent_bg_color, 0.14);
+                font-weight: 600;
+                font-size: 0.82em;
+            }
+            .veilpaper-muted-status {
+                background: alpha(@window_fg_color, 0.07);
+            }
+            .veilpaper-footer { padding: 2px 6px; }
+        """
+        provider = Gtk.CssProvider()
+        provider.load_from_data(css)
+        display = Gdk.Display.get_default()
+        if display is not None:
+            Gtk.StyleContext.add_provider_for_display(
+                display, provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+        self._css_provider = provider
+
+    def _card(self, parent, title, icon_name, description, status, *, muted=False):
         frame = Gtk.Frame()
         frame.add_css_class('card')
+        frame.add_css_class('veilpaper-panel')
+        frame.set_hexpand(True)
         parent.append(frame)
-        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
-        box.set_margin_top(18)
-        box.set_margin_bottom(18)
-        box.set_margin_start(18)
-        box.set_margin_end(18)
-        frame.set_child(box)
-        box.append(_label(title, 'title-3'))
-        box.append(_label(description, 'dim-label', wrap=True))
-        return box
+
+        content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=13)
+        content.set_margin_top(18)
+        content.set_margin_bottom(18)
+        content.set_margin_start(18)
+        content.set_margin_end(18)
+        frame.set_child(content)
+
+        header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+        content.append(header)
+        icon = Gtk.Image.new_from_icon_name(icon_name)
+        icon.set_pixel_size(22)
+        header.append(icon)
+        name = _label(title, 'title-3')
+        name.set_hexpand(True)
+        header.append(name)
+
+        pill = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=5)
+        pill.add_css_class('veilpaper-status')
+        if muted:
+            pill.add_css_class('veilpaper-muted-status')
+        badge_label = Gtk.Label(label=status)
+        pill.append(badge_label)
+        header.append(pill)
+
+        content.append(_label(description, 'dim-label', wrap=True))
+        return content, badge_label
 
     def _preview(self, parent, accessibility):
-        container = Gtk.Frame()
-        parent.append(container)
+        border = Gtk.Frame()
+        border.add_css_class('veilpaper-preview')
+        parent.append(border)
+        aspect = Gtk.AspectFrame(ratio=16 / 10, obey_child=False,
+                                 xalign=0.5, yalign=0.5)
+        aspect.set_hexpand(True)
+        border.set_child(aspect)
+
         stack = Gtk.Stack()
-        container.set_child(stack)
+        stack.set_size_request(-1, 255)
+        aspect.set_child(stack)
         picture = Gtk.Picture()
-        # Show the ENTIRE image, including portrait/square wallpapers.
-        # COVER would severely crop pictures in a wide preview strip.
         picture.set_content_fit(Gtk.ContentFit.CONTAIN)
         picture.set_can_shrink(True)
-        picture.set_size_request(-1, 250)
         picture.set_alternative_text(accessibility)
         picture.set_tooltip_text(accessibility)
         stack.add_named(picture, 'image')
-        placeholder = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
-        placeholder.set_size_request(-1, 250)
+
+        placeholder = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
         placeholder.set_valign(Gtk.Align.CENTER)
+        placeholder.set_halign(Gtk.Align.CENTER)
         icon = Gtk.Image.new_from_icon_name('preferences-desktop-wallpaper-symbolic')
-        icon.set_pixel_size(56)
+        icon.set_pixel_size(52)
         placeholder.append(icon)
         message = Gtk.Label(label='No image preview available')
         message.add_css_class('dim-label')
         placeholder.append(message)
         stack.add_named(placeholder, 'placeholder')
         stack.set_visible_child_name('placeholder')
-        # Use the stack as the handle for selecting the placeholder/image.
         return picture, stack
 
     def _toast(self, message):
@@ -208,13 +297,15 @@ class VeilpaperWindow(Adw.ApplicationWindow):
 
     def _refresh(self):
         current = state()
+        active = current.extension_state == 'Extension active'
+        self._lock_badge.set_text('ACTIVE' if active else 'CHECK EXTENSION')
         if self._pending is None:
             self._show_lock_preview(current.lock_image)
             self._apply.set_sensitive(False)
             name = current.lock_image.name if current.lock_image else 'System default'
-            self._lock_status.set_text(f'{name}  •  {current.extension_state}')
+            self._lock_status.set_text(f'Current wallpaper: {name}')
         else:
-            self._lock_status.set_text(f'Ready to apply: {self._pending.name}')
+            self._lock_status.set_text(f'Not applied yet: {self._pending.name}')
         self._login_status.set_text(current.login_label)
         self._login_detail.set_text(current.login_detail)
         data = login_preview()
@@ -246,7 +337,7 @@ class VeilpaperWindow(Adw.ApplicationWindow):
             try:
                 selected = chooser.open_finish(result)
             except GLib.Error:
-                return  # Dismissed/cancelled file selection, no changes.
+                return
             if selected is None or not selected.get_path():
                 self._toast('Please choose a local image file.')
                 return
@@ -260,7 +351,7 @@ class VeilpaperWindow(Adw.ApplicationWindow):
             self._lock_picture.set_paintable(paintable)
             self._lock_icon.set_visible_child_name('image')
             self._apply.set_sensitive(True)
-            self._lock_status.set_text(f'Ready to apply: {path.name}')
+            self._lock_status.set_text(f'Not applied yet: {path.name}')
         dialog.open(self, None, finished)
 
     def _apply_lock(self, _button):
