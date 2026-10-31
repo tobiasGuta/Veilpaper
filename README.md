@@ -24,7 +24,7 @@ Veilpaper is an experimental GNOME wallpaper manager that controls **GDM login**
 | Native GNOME GUI (GTK4 + libadwaita) | **Lock workflow and login build-only preview/details visually PASS** on Fedora 44 GNOME Wayland |
 | Disposable Fedora VM admission | **PASS** in disposable Fedora 44 full VM; read-only RPM review, five recoveries, four SIGKILL fixture tests |
 | Real GDM install/reboot/restore (guest-only) | **PASS** in disposable Fedora 44 VM, including original SHA-256, mode, SELinux label, timestamp and clean RPM verification |
-| Real GDM post-swap SIGKILL recovery | New separate disposable full-VM qualification **pending**; standard desktop Apply remains disabled |
+| Real GDM SIGKILL recovery (all four journal/swap checkpoints) | **PASS** in disposable Fedora 44 full VMs, including reboot, recovery and clean RPM verification; standard desktop Apply remains disabled |
 | Install/restore across machines | **Not ready** |
 
 The login tool requires a specific verified original GDM checksum. It will refuse unknown host originals, and that is intentional. **Do not apply the login theme tool on another system.**
@@ -33,7 +33,7 @@ The lock extension uses GNOME Shell private APIs. Full regression tests—includ
 
 ## VM-only qualification and candidate details (experimental)
 
-**Verified CI checkpoint (October 31, 2026):** [Fedora full-VM admission and fixture SIGKILL recovery PASS](https://github.com/tobiasGuta/Veilpaper/actions/runs/41240345815), followed by [real GDM install, reboot and byte-for-byte restore PASS](https://github.com/tobiasGuta/Veilpaper/actions/runs/41245722339). A separate [real-theme post-swap SIGKILL recovery run](https://github.com/tobiasGuta/Veilpaper/actions/runs/41247600260) is underway and is **not yet qualified**. The production GUI still cannot install a login wallpaper.
+**Verified CI checkpoint (October 31, 2026):** [Fedora full-VM admission and fixture SIGKILL recovery PASS](https://github.com/tobiasGuta/Veilpaper/actions/runs/41240345815), followed by [real GDM install, reboot and byte-for-byte restore PASS](https://github.com/tobiasGuta/Veilpaper/actions/runs/41245722339). [Real-theme install-swap SIGKILL recovery PASS](https://github.com/tobiasGuta/Veilpaper/actions/runs/41247600260) and [all three remaining real SIGKILL checkpoints PASS](https://github.com/tobiasGuta/Veilpaper/actions/runs/41248524267). The production GUI still cannot install a login wallpaper; graphical GDM and power-loss qualifications remain outstanding.
 
 
 
