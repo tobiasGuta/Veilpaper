@@ -28,11 +28,26 @@ gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 from gi.repository import Gtk
 assert hasattr(Gtk, 'FileDialog'), 'GTK4 FileDialog is required'
-from veilpaper_gui import VeilpaperApp, VeilpaperWindow
+from veilpaper_gui import VeilpaperApp, VeilpaperWindow, ICON_FILE, APP_VERSION
+from pathlib import Path
+assert ICON_FILE.is_file(), 'Branded application icon must be packaged'
 app = VeilpaperApp()
 assert app.register(None), 'GTK app registration failed'
 window = VeilpaperWindow(app)
 assert window.get_title() == 'Veilpaper'
+assert window.get_default_size() == (1120, 740), 'Default GNOME window sizing changed'
+assert window._choose.has_css_class('suggested-action'), 'Choose image should be primary by default'
+assert not window._apply.has_css_class('suggested-action'), 'Apply should not be primary without a new selection'
+window._pending = Path('/tmp/veilpaper-gui-staged-fixture.png')
+window._update_action_styles()
+assert window._apply.has_css_class('suggested-action'), 'Apply should become primary once an image is staged'
+assert not window._choose.has_css_class('suggested-action'), 'Only one primary action at a time'
+window._pending = None
+window._update_action_styles()
+window._show_about(None)
+assert window._about_window.get_application_name() == 'Veilpaper', 'About window title'
+assert window._about_window.get_version() == APP_VERSION, 'About window version'
+window._about_window.close()
 assert not window._apply.get_sensitive(), 'Apply must be disabled without selection'
 assert window._content_clamp.get_maximum_size() == 1210, 'Dashboard must have a readable maximum width'
 assert window._content_clamp.get_child() is not None, 'Content must be attached to clamp'
