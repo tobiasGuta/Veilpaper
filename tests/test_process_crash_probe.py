@@ -52,7 +52,7 @@ class ProcessCrashFixtureTests(unittest.TestCase):
 
     def test_missing_source_file_is_refused(self):
         with patch.object(probe.os, 'geteuid', return_value=1000):
-            with self.assertRaises(FileNotFoundError):
+            with self.assertRaisesRegex(RuntimeError, 'non-symlink'):
                 probe.probe(self.root / 'missing.gresource', self.candidate)
 
 
