@@ -66,6 +66,17 @@ previews and a centered **Adw.Clamp** for readable, responsive layouts.
 
 ### Adaptive two-panel interface (experimental)
 
+**CI:** [Responsive GUI smoke PASS](https://github.com/tobiasGuta/Veilpaper/actions/runs/41236769207), including width clamp, horizontal two-panel structure, whole-image preview and status checks. GTK4/libadwaita window creation and all 88 Python backend/installer tests passed.
+
+Before updating the no-overwrite installed GUI bundle, close Veilpaper and preview the latest checkout with:
+
+```bash
+python3 gui/veilpaper_gui.py
+```
+
+If the design is satisfactory, close the preview and run the separate GUI uninstall/install commands below. **Do not** update or restore GDM to try this layout.
+
+
 After the user's first GUI walkthrough, the lock picker, apply operation,
 screen lock, and persistence across reopening were confirmed working on a
 Fedora 44 GNOME Wayland desktop. The next UI version retains those operations
