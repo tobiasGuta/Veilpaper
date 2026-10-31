@@ -16,6 +16,7 @@ ROOT = Path(__file__).resolve().parent
 GDM_BACKEND = ROOT / 'experiments/gdm/fedora_wallpaper_manager_v02.py'
 GDM_PREFLIGHT = ROOT / 'experiments/gdm/preflight.py'
 GDM_RPM_BASELINE = ROOT / 'experiments/gdm/rpm_baseline.py'
+GDM_PORTABLE_BUILDER = ROOT / 'experiments/gdm/portable_build.py'
 EXTENSION_SOURCE = ROOT / 'experiments/lockscreen/lockscreen'
 UUID = 'lockscreen@veilpaper.tobiasguta'
 MAX_IMAGE_BYTES = 25 * 1024 * 1024
@@ -207,6 +208,17 @@ def baseline_login():
     return module.show(module.inspect())
 
 
+def portable_build_login(image, output):
+    """Create a stock-baseline candidate; no sudo and no system writes."""
+    require_user()
+    spec = importlib.util.spec_from_file_location('veilpaper_portable_builder', GDM_PORTABLE_BUILDER)
+    if spec is None or spec.loader is None:
+        fail(f'GDM portable builder missing: {GDM_PORTABLE_BUILDER}')
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.build(image, output)
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     subs = parser.add_subparsers(dest='command', required=True)
@@ -220,6 +232,11 @@ def main(argv=None):
     lock_sub.add_parser('status', help='Report lock extension and image')
     login = subs.add_parser('login', help='GDM system-theme operations (only verified original host)')
     login_sub = login.add_subparsers(dest='action', required=True)
+    portable_build = login_sub.add_parser('portable-build',
+        help='Build from verified RPM baseline without modifying GDM (no sudo)')
+    portable_build.add_argument('image', type=Path)
+    portable_build.add_argument('--output', type=Path,
+        default=Path.home() / 'Downloads' / 'veilpaper-portable-candidate.gresource')
     login_build = login_sub.add_parser('build', help='Build candidate without changing GNOME')
     login_build.add_argument('image', type=Path)
     login_build.add_argument('--output', type=Path,
@@ -246,6 +263,8 @@ def main(argv=None):
                 return preflight_login()
             if args.action == 'baseline':
                 return baseline_login()
+            if args.action == 'portable-build':
+                return portable_build_login(args.image.expanduser(), args.output.expanduser())
             backend = gdm()
             if args.action == 'build':
                 backend.build(args.image.expanduser(), args.output.expanduser())
