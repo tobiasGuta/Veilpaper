@@ -66,6 +66,18 @@ assert 'candidate' in window._login_progress.get_text().lower(), 'Build-only gui
 assert window._login_choose.get_label() == 'Choose image…', 'Login image picker missing'
 window._pending_login = Path('/tmp/veilpaper-staged-login-image.png')
 window._login_prepare.set_sensitive(True)
+from types import SimpleNamespace
+from unittest.mock import patch
+with patch('veilpaper_gui.prepare_login_candidate', return_value=SimpleNamespace(
+        path=Path('/tmp/test-candidate.gresource'),
+        digest='a' * 64,
+        baseline_digest='b' * 64,
+        resource='/org/gnome/shell/theme/fedora-login-wallpaper.png')):
+    window._prepare_login(None)
+assert window._login_details.get_sensitive(), 'Verification should enable details'
+assert window._candidate_path_label.get_text() == '/tmp/test-candidate.gresource'
+assert window._candidate_digest_label.get_text() == 'a' * 64
+assert 'not installed' in window._login_progress.get_text().lower()
 window._show_current_login(None)
 assert window._pending_login is None, 'Show current must discard the pending selection'
 assert not window._login_prepare.get_sensitive(), 'Reset must disable preparation'
