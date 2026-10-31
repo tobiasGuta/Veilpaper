@@ -1,0 +1,29 @@
+name: Fedora 44 VM GDM install/restore (disposable)
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - experimental/gnome50-lockscreen
+    paths:
+      - .github/workflows/fedora44-vm-real-gdm.yml
+      - scripts/fedora44_vm_real_gdm_check.sh
+      - experiments/gdm/vm_real_transaction.py
+
+permissions:
+  contents: read
+
+concurrency:
+  group: veilpaper-disposable-fedora44-gdm-write
+  cancel-in-progress: true
+
+jobs:
+  disposable-vm-theme-swap:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check guest-only harness syntax
+        run: bash -n scripts/fedora44_vm_real_gdm_check.sh
+      - name: Install, reboot, and restore GDM inside disposable Fedora 44 VM
+        run: bash scripts/fedora44_vm_real_gdm_check.sh
