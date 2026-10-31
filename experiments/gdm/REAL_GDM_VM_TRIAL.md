@@ -19,7 +19,7 @@ The prototype [VM real transaction](vm_real_transaction.py) requires:
 ## Guest installation sequence
 
 First-time installation re-runs resource/RPM review in the privileged process.
-It records original owner, group, file mode and readable SELinux metadata,
+It records original owner, group, file mode, nanosecond modification time and readable SELinux metadata,
 then writes and fsyncs a new original backup, without overwriting anything.
 After persisting the install journal, it replaces the actual package-owned
 GDM resource atomically and checks the new checksum and original metadata.
@@ -40,7 +40,7 @@ journal remain for audit. There is no general update or removal feature.
 - A real guest reboot, validated by a changed Linux kernel boot ID.
 - Candidate GDM theme still installed after reboot.
 - Verified original GDM checksum and metadata after restoration.
-- Clean RPM file verification at the end.
+- Clean RPM file verification at the end, including the original modification timestamp.
 
 See [guest CI harness](../../scripts/fedora44_vm_real_gdm_check.sh).
 
@@ -53,3 +53,9 @@ does not use this guest-only tool; login Apply stays disabled.
 
 Do not claim VM installation success until the specific guest CI run reports
 successful post-reboot and RPM verification.
+
+## RPM timestamp regression — October 31, 2026
+
+The first real-VM install/reboot/restore run, [41244248252](https://github.com/tobiasGuta/Veilpaper/actions/runs/41244248252), **failed** at the final `rpm -V gnome-shell` check. Candidate installation, reboot persistence, and byte-for-byte resource restoration succeeded. RPM reported `.......T.` for the theme resource: its file modification timestamp changed during atomic replacement, even though the SHA-256 and owner/mode/SELinux context matched.
+
+The correction stores the packaged original's `st_mtime_ns` in the durable version-2 transaction record, stamps the staging inode before atomic publication for both install and restore, and verifies the restored timestamp. The full-VM script now checks nanosecond timestamp equality before/after the reboot. **Do not mark this corrected real-VM qualification PASS until a new workflow run completes successfully.**
