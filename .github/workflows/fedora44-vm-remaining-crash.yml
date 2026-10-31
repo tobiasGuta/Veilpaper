@@ -1,0 +1,40 @@
+name: Fedora 44 remaining real GDM SIGKILL checkpoints (disposable)
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - experimental/gnome50-lockscreen
+    paths:
+      - .github/workflows/fedora44-vm-remaining-crash.yml
+      - scripts/fedora44_vm_remaining_gdm_crash_check.sh
+      - experiments/gdm/vm_real_crash_injector.py
+      - experiments/gdm/vm_real_transaction.py
+
+permissions:
+  contents: read
+
+concurrency:
+  group: veilpaper-disposable-fedora44-gdm-remaining-crash
+  cancel-in-progress: true
+
+jobs:
+  real-gdm-remaining-checkpoints:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        checkpoint:
+          - install-intent
+          - restore-intent
+          - restore-swap
+    env:
+      CRASH_CHECKPOINT: ${{ matrix.checkpoint }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate real GDM crash harness syntax
+        run: bash -n scripts/fedora44_vm_remaining_gdm_crash_check.sh
+      - name: Kill selected real VM GDM transaction, reboot, and verify restore
+        run: bash scripts/fedora44_vm_remaining_gdm_crash_check.sh
