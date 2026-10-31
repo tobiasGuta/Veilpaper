@@ -176,6 +176,41 @@ class VeilpaperWindow(Adw.ApplicationWindow):
             'Installing it is not available yet.',
             'dim-label', wrap=True)
         login.append(self._login_progress)
+
+        # Technical details are selectable on demand, never stretched across
+        # the two-card dashboard. No candidate data is sent anywhere.
+        self._login_details = Gtk.MenuButton(label='View details')
+        self._login_details.set_tooltip_text('Show candidate location and SHA-256')
+        self._login_details.set_sensitive(False)
+        self._login_details.set_halign(Gtk.Align.START)
+        detail_popover = Gtk.Popover()
+        detail_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        detail_box.set_margin_top(14)
+        detail_box.set_margin_bottom(14)
+        detail_box.set_margin_start(14)
+        detail_box.set_margin_end(14)
+        detail_box.set_size_request(340, -1)
+        detail_box.append(_label('Verified candidate details', 'heading'))
+        detail_box.append(_label('Saved locally — never installed', 'dim-label'))
+        detail_box.append(_label('RESOURCE PATH', 'dim-label'))
+        self._candidate_path_label = _label('', wrap=True)
+        self._candidate_path_label.set_selectable(True)
+        self._candidate_path_label.set_wrap_mode(Pango.WrapMode.CHAR)
+        self._candidate_path_label.set_max_width_chars(45)
+        detail_box.append(self._candidate_path_label)
+        detail_box.append(_label('SHA-256', 'dim-label'))
+        self._candidate_digest_label = _label('', wrap=True)
+        self._candidate_digest_label.set_selectable(True)
+        self._candidate_digest_label.set_wrap_mode(Pango.WrapMode.CHAR)
+        self._candidate_digest_label.set_max_width_chars(45)
+        detail_box.append(self._candidate_digest_label)
+        self._copy_candidate_hash = Gtk.Button(label='Copy SHA-256')
+        self._copy_candidate_hash.connect('clicked', self._copy_digest)
+        detail_box.append(self._copy_candidate_hash)
+        detail_popover.set_child(detail_box)
+        self._login_details.set_popover(detail_popover)
+        login.append(self._login_details)
+
         login_actions = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         self._login_actions = login_actions
         login.append(login_actions)
@@ -410,6 +445,9 @@ class VeilpaperWindow(Adw.ApplicationWindow):
                 return
             self._pending_login = path
             self._login_candidate = None
+            self._login_details.set_sensitive(False)
+            self._candidate_path_label.set_text('')
+            self._candidate_digest_label.set_text('')
             self._login_picture.set_paintable(paintable)
             self._login_icon.set_visible_child_name('image')
             self._login_prepare.set_sensitive(True)
@@ -432,16 +470,27 @@ class VeilpaperWindow(Adw.ApplicationWindow):
             self._toast(f'GDM candidate could not be prepared: {error}')
             return
         self._login_candidate = result
+        self._candidate_path_label.set_text(str(result.path))
+        self._candidate_digest_label.set_text(result.digest)
+        self._login_details.set_sensitive(True)
         self._login_progress.set_text(
-            f'Verified candidate: {result.path}\n'
-            f'SHA-256: {result.digest}\n'
-            'Not installed. Existing login wallpaper and recovery backup are untouched.')
+            'Candidate built and verified locally. Your installed login wallpaper '
+            'and original recovery backup have not changed.')
         self._login_status.set_text('Verified candidate ready — not installed')
         self._toast('Login candidate verified. No system theme was changed.')
+
+    def _copy_digest(self, _button):
+        if self._login_candidate is None:
+            return
+        Gdk.Display.get_default().get_clipboard().set(self._login_candidate.digest)
+        self._toast('Candidate SHA-256 copied.')
 
     def _show_current_login(self, _button):
         self._pending_login = None
         self._login_candidate = None
+        self._login_details.set_sensitive(False)
+        self._candidate_path_label.set_text('')
+        self._candidate_digest_label.set_text('')
         self._login_prepare.set_sensitive(False)
         self._login_progress.set_text(
             'Choose an image to preview and prepare a verified GDM candidate. '
