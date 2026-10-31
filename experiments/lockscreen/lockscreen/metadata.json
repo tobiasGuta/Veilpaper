@@ -1,0 +1,12 @@
+{
+  "uuid": "lockscreen@veilpaper.tobiasguta",
+  "name": "Veilpaper Lock Screen (Prototype)",
+  "description": "Use a separate lock screen wallpaper while preserving the desktop and GDM backgrounds.",
+  "shell-version": [
+    "50"
+  ],
+  "session-modes": [
+    "user",
+    "unlock-dialog"
+  ]
+}
