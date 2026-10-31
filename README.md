@@ -21,7 +21,7 @@ Veilpaper is an experimental GNOME wallpaper manager that controls **GDM login**
 | First-time GDM install review | New read-only, fail-closed resource/RPM verification; no live installer or authorization |
 | One-command user launcher | **PASS:** installed `~/.local/bin/veilpaper` on Fedora 44, ran status, lock set, and RPM baseline with no GDM writes |
 | Fedora 44 stock-RPM integration | **PASS** in isolated container: stock RPM, portable candidate build, first-time install-check, five transaction simulations, unchanged GDM theme |
-| Native GNOME GUI (GTK4 + libadwaita) | Experimental image picker, lock preview/apply/restore, read-only login preview/status; virtual-display and live Wayland testing pending |
+| Native GNOME GUI (GTK4 + libadwaita) | **Fedora 44 virtual-display smoke PASS**, GUI/backend installer tests PASS; real GNOME Wayland interaction pending |
 | Install/restore across machines | **Not ready** |
 
 The login tool requires a specific verified original GDM checksum. It will refuse unknown host originals, and that is intentional. **Do not apply the login theme tool on another system.**
@@ -68,9 +68,9 @@ python3 scripts/gui_install.py uninstall
 This is an experimental app, not a final Fedora RPM/Flatpak. The launcher
 bundles a separate copy of the shared Python backend so existing installed
 development CLIs remain untouched. The final packaging plan will combine
-these into one updateable distribution. The Fedora 44 GUI smoke workflow
-uses Xvfb inside a disposable container; a real GNOME Wayland visual and
-interaction test is still required.
+these into one updateable distribution. The [Fedora 44 GUI smoke test](https://github.com/tobiasGuta/Veilpaper/actions/runs/41236164174)
+**PASSED**, creating the GTK4/libadwaita window under Xvfb in an isolated
+container. A real GNOME Wayland visual and interaction test is still required.
 
 ## Isolated Fedora 44 stock-theme integration
 
