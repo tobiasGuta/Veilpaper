@@ -38,8 +38,32 @@ verify_greeter() {
     sleep 6
   done
   echo 'BLOCKED: real GNOME GDM greeter process did not start' >&2
-  ssh "${ssh_opts[@]}" "$guest" \
-    'systemctl --no-pager status gdm || true; sudo journalctl -u gdm -n 45 --no-pager || true' >&2 || true
+  echo '=== GDM/seat/DRM debug evidence from this disposable guest ===' >&2
+  ssh "${ssh_opts[@]}" "$guest" 'bash -se' <<'DIAGNOSTICS' >&2 || true
+set +e
+printf '\n== boot mode ==\n'
+cat /proc/cmdline
+systemctl get-default
+systemctl is-active graphical.target systemd-logind.service gdm.service
+printf '\n== graphical seat ==\n'
+loginctl list-seats
+loginctl seat-status seat0
+printf '\n== graphics devices ==\n'
+ls -l /dev/dri /dev/tty0 /dev/tty1 /dev/fb0 2>&1
+readlink -f /sys/class/drm/card*/device/driver 2>&1
+printf '\n== session and user processes ==\n'
+loginctl list-sessions
+ps -eo user,pid,tty,args | grep -E '[g]dm|[g]nome-shell|[X]org|[X]wayland'
+printf '\n== GDM journal last 100 ==\n'
+sudo journalctl -b -u gdm -n 100 --no-pager
+printf '\n== GDM user journal last 100 ==\n'
+sudo journalctl -b _UID=42 -n 100 --no-pager
+printf '\n== display/seat errors ==\n'
+sudo journalctl -b --no-pager -p warning -n 70
+DIAGNOSTICS
+  # Preserve a raw QEMU diagnostic framebuffer even if no actual greeter
+  # exists. Never label diagnostic evidence as stock/customized greeter.
+  snapshot diagnostic-no-greeter >&2 || true
   return 1
 }
 
@@ -207,6 +231,28 @@ echo "PASS: real Fedora 44 VM admission and independent fixture crash recoveries
 echo 'PASS: read-only GDM candidate admission finished before graphical install'
 GUEST
 
+echo '=== Reboot newly provisioned GNOME guest into graphical.target ==='
+# Enabling the display manager in an already-booted Cloud image does not
+# guarantee logind/seat0 and the virtual GPU are initialized for its greeter.
+# Reboot once BEFORE any GDM file edits; prove a new kernel boot ID.
+boot_before_gui="$(ssh "${ssh_opts[@]}" "$guest" 'cat /proc/sys/kernel/random/boot_id')"
+ssh "${ssh_opts[@]}" "$guest" 'sudo systemctl reboot' || true
+graphical_boot=0
+for _ in $(seq 1 120); do
+  if ! kill -0 "$qemu_pid" 2>/dev/null; then
+    echo 'BLOCKED: VM died during clean graphical-target reboot' >&2; exit 1
+  fi
+  observed="$(ssh "${ssh_opts[@]}" "$guest" 'cat /proc/sys/kernel/random/boot_id' 2>/dev/null || true)"
+  if [[ -n "$observed" && "$observed" != "$boot_before_gui" ]]; then
+    graphical_boot=1
+    break
+  fi
+  sleep 5
+done
+if [[ "$graphical_boot" != 1 ]]; then
+  echo 'BLOCKED: graphical-target guest did not return after first reboot' >&2; exit 1
+fi
+echo 'PASS: Fedora full VM rebooted into configured graphical.target'
 echo '=== Require the GDM greeter, then capture stock virtual display ==='
 verify_greeter
 snapshot stock-greeter
