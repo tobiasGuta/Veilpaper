@@ -359,11 +359,16 @@ class VeilpaperWindow(Adw.ApplicationWindow):
             self._lock_status.set_text(f'Current wallpaper: {name}')
         else:
             self._lock_status.set_text(f'Not applied yet: {self._pending.name}')
-        self._login_status.set_text(current.login_label)
+        if self._pending_login is None:
+            self._login_status.set_text(current.login_label)
+        elif self._login_candidate is None:
+            self._login_status.set_text('Preview only — not installed')
+        else:
+            self._login_status.set_text('Verified candidate ready — not installed')
         self._login_detail.set_text(current.login_detail)
         self._update_action_styles()
         if self._pending_login is not None:
-            return  # Retain selected login preview while refreshing system status.
+            return  # Keep staged login preview and its explicit build-only status.
         data = login_preview()
         if data:
             try:
