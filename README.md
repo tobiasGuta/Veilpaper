@@ -20,7 +20,7 @@ Veilpaper is an experimental GNOME wallpaper manager that controls **GDM login**
 | GDM transaction simulation | Fixture-only journaled install/rollback and interruption tests; **not enabled against live GDM** |
 | First-time GDM install review | New read-only, fail-closed resource/RPM verification; no live installer or authorization |
 | One-command user launcher | **PASS:** installed `~/.local/bin/veilpaper` on Fedora 44, ran status, lock set, and RPM baseline with no GDM writes |
-| Fedora 44 stock-RPM integration | New isolated container workflow exercises build, install-check and transaction simulation without any graphical session or host GDM writes; first CI run pending |
+| Fedora 44 stock-RPM integration | **PASS** in isolated container: stock RPM, portable candidate build, first-time install-check, five transaction simulations, unchanged GDM theme |
 | Install/restore across machines | **Not ready** |
 
 The login tool requires a specific verified original GDM checksum. It will refuse unknown host originals, and that is intentional. **Do not apply the login theme tool on another system.**
@@ -37,6 +37,8 @@ It installs GNOME Shell **inside the container**, then exercises:
 - `install-check` against the pristine RPM theme;
 - the five disposable transaction simulation scenarios;
 - unchanged package-owned theme checksum after the test.
+
+**CI validation:** [isolated Fedora 44 GDM integration — PASS](https://github.com/tobiasGuta/Veilpaper/actions/runs/41235462860). The pristine RPM theme had eight resources; a candidate with one additional wallpaper asset passed the read-only installation review. All five disposable recovery scenarios passed. The packaged theme hash was unchanged.
 
 This provides stronger evidence than mock-only tests, but is **not** a graphical
 GDM login test, a privileged live install, or a recovery qualification.
