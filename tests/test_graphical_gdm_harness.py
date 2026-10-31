@@ -23,8 +23,8 @@ class GraphicalGDMHarnessGuards(unittest.TestCase):
                         HARNESS.index('vm_real_transaction.py install'))
 
     def test_real_greeter_process_and_four_visual_artifacts(self):
-        self.assertIn('pgrep -u gdm -f gnome-shell', HARNESS)
-        self.assertIn('systemctl is-active --quiet gdm', HARNESS)
+        self.assertIn('scripts/verify_qemu_gdm_greeter.py', HARNESS)
+        self.assertNotIn('pgrep -u gdm -f gnome-shell', HARNESS)
         for image in ('stock-greeter','customized-greeter',
                       'customized-after-reboot','restored-greeter'):
             self.assertIn('snapshot ' + image, HARNESS)
