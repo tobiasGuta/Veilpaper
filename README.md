@@ -31,6 +31,10 @@ The lock extension uses GNOME Shell private APIs. Full regression tests—includ
 
 ## VM-only qualification and candidate details (experimental)
 
+**Verified CI checkpoint (October 31, 2026):** [108 Python tests PASS](https://github.com/tobiasGuta/Veilpaper/actions/runs/41238946006), [GTK4/libadwaita GUI smoke PASS](https://github.com/tobiasGuta/Veilpaper/actions/runs/41238946075), and [Fedora container VM-gate refusal PASS](https://github.com/tobiasGuta/Veilpaper/actions/runs/41238756416). The VM admission tool has **not yet run inside a true disposable Fedora VM**, and there has been **no system GDM installation** in this phase.
+
+
+
 The Login screen card now stays compact after building a candidate. Instead of
 printing the long filesystem path and 64-character SHA-256 into the main card,
 it shows a short **candidate verified — not installed** confirmation. The
