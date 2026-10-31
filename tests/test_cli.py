@@ -67,6 +67,28 @@ class LockCLITests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, 'not with sudo'):
                 vp.set_lock(Path('any.png'))
 
+    def test_transaction_check_does_not_load_live_gdm_writer(self):
+        with patch.object(vp, 'transaction_check_login', return_value=0) as sim, \
+             patch.object(vp, 'gdm', side_effect=AssertionError('must not load writer')):
+            result = vp.main(['login', 'transaction-check',
+                '/tmp/original.gresource', '/tmp/candidate.gresource'])
+        self.assertEqual(result, 0)
+        sim.assert_called_once_with(Path('/tmp/original.gresource'), Path('/tmp/candidate.gresource'))
+
+    def test_transaction_check_rejects_root(self):
+        with patch.object(vp.os, 'geteuid', return_value=0):
+            with self.assertRaisesRegex(RuntimeError, 'not with sudo'):
+                vp.transaction_check_login(Path('/tmp/a'), Path('/tmp/b'))
+
+    def test_transaction_check_error_returns_failure(self):
+        with patch.object(vp, 'transaction_check_login',
+                          side_effect=RuntimeError('fixture integrity error')), \
+             patch.object(vp, 'gdm', side_effect=AssertionError('must not load writer')), \
+             contextlib.redirect_stderr(io.StringIO()) as err:
+            result = vp.main(['login', 'transaction-check', '/tmp/a', '/tmp/b'])
+        self.assertEqual(result, 1)
+        self.assertIn('fixture integrity error', err.getvalue())
+
     def test_portable_build_dispatch_avoids_legacy_writer(self):
         with patch.object(vp, 'portable_build_login', return_value=None) as portable, \
              patch.object(vp, 'gdm', side_effect=AssertionError('must not load writer')):
