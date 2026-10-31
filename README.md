@@ -119,6 +119,8 @@ container. A real GNOME Wayland visual and interaction test is still required.
 
 ### Visual polish checkpoint
 
+**Verification:** [Fedora 44 About/icon smoke — PASS](https://github.com/tobiasGuta/Veilpaper/actions/runs/41237413019). The GUI window, custom icon file, About window and primary-action switch were exercised on an isolated virtual display; **90/90 Python tests passed**. A full GNOME Wayland visual review remains pending.
+
 The next development preview retains the **tested two-panel GNOME UI** and
 improves the small details rather than redesigning the layout:
 
