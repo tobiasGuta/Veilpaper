@@ -22,11 +22,34 @@ Veilpaper is an experimental GNOME wallpaper manager that controls **GDM login**
 | One-command user launcher | **PASS:** installed `~/.local/bin/veilpaper` on Fedora 44, ran status, lock set, and RPM baseline with no GDM writes |
 | Fedora 44 stock-RPM integration | **PASS** in isolated container: stock RPM, portable candidate build, first-time install-check, five transaction simulations, unchanged GDM theme |
 | Native GNOME GUI (GTK4 + libadwaita) | **Lock workflow visually PASS** on Fedora 44 GNOME Wayland; login selection and candidate compilation added, host testing pending |
+| Disposable Fedora VM admission | Strict root/full-VM/marker guard plus read-only stock RPM and five fixture recovery checks; **real VM run not yet done** |
 | Install/restore across machines | **Not ready** |
 
 The login tool requires a specific verified original GDM checksum. It will refuse unknown host originals, and that is intentional. **Do not apply the login theme tool on another system.**
 
 The lock extension uses GNOME Shell private APIs. Full regression tests—including normal password unlock, extension disable, upgrade effects, and SELinux behavior—remain outstanding.
+
+## VM-only qualification and candidate details (experimental)
+
+The Login screen card now stays compact after building a candidate. Instead of
+printing the long filesystem path and 64-character SHA-256 into the main card,
+it shows a short **candidate verified — not installed** confirmation. The
+**View details** control exposes the full selectable path, SHA-256 and a copy
+action; it is disabled if nothing has been verified, and clears on reset.
+
+A new **read-only VM admission** tool lives at
+[experiments/gdm/vm_gate.py](experiments/gdm/vm_gate.py). It requires:
+a full Fedora 44 VM (not the physical host or container), an exact root-owned,
+mode-0600 qualification marker, clean RPM-matching GDM theme, no existing
+manager state or backup, exact candidate-diff validation and five temporary
+recovery simulations. It outputs a report with install_performed: False.
+
+See [the disposable VM qualification runbook](experiments/gdm/VM_QUALIFICATION.md)
+for an isolated guest-only procedure. **It must not be run or marked on the
+main laptop. No privileged installer exists yet**, and the GUI still cannot
+install a login wallpaper. The real theme-swap/crash-recovery experiment in a
+snapshot-backed Fedora VM remains the next separately reviewed development
+step.
 
 ## Build a login wallpaper candidate through the GUI (experimental)
 
