@@ -55,6 +55,8 @@ The GUI bundle manifest is now **v3** and bundles the portable builder and
 candidate reviewer. Its installer remains able to safely uninstall v1/v2
 application bundles before upgrading.
 
+**Integration result:** [Fedora 44 stock-RPM GUI candidate test — PASS](https://github.com/tobiasGuta/Veilpaper/actions/runs/41238287285). An unprivileged user prepared and verified a real compiled GDM candidate in a disposable Fedora container, and the package-owned GDM theme remained unchanged. This is not a real graphical login or privileged installation test.
+
 ## Native GNOME GUI prototype
 
 Veilpaper now includes a **GTK4/libadwaita** application. It uses the existing
