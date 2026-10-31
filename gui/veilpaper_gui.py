@@ -83,12 +83,19 @@ class VeilpaperWindow(Adw.ApplicationWindow):
         scroll = Gtk.ScrolledWindow()
         scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         toolbar.set_content(scroll)
+        # Keep controls readable on maximized/ultrawide GNOME desktops.
+        # The clamp automatically centers the content while remaining
+        # responsive as the window narrows.
+        self._content_clamp = Adw.Clamp()
+        self._content_clamp.set_maximum_size(900)
+        self._content_clamp.set_tightening_threshold(700)
+        scroll.set_child(self._content_clamp)
         viewport = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=18)
         viewport.set_margin_top(28)
         viewport.set_margin_bottom(30)
         viewport.set_margin_start(26)
         viewport.set_margin_end(26)
-        scroll.set_child(viewport)
+        self._content_clamp.set_child(viewport)
 
         heading = _label('Your screens. Your wallpapers.', 'title-1', wrap=True)
         viewport.append(heading)
@@ -163,12 +170,16 @@ class VeilpaperWindow(Adw.ApplicationWindow):
         stack = Gtk.Stack()
         container.set_child(stack)
         picture = Gtk.Picture()
-        picture.set_content_fit(Gtk.ContentFit.COVER)
-        picture.set_size_request(-1, 185)
+        # Show the ENTIRE image, including portrait/square wallpapers.
+        # COVER would severely crop pictures in a wide preview strip.
+        picture.set_content_fit(Gtk.ContentFit.CONTAIN)
+        picture.set_can_shrink(True)
+        picture.set_size_request(-1, 250)
+        picture.set_alternative_text(accessibility)
         picture.set_tooltip_text(accessibility)
         stack.add_named(picture, 'image')
         placeholder = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
-        placeholder.set_size_request(-1, 185)
+        placeholder.set_size_request(-1, 250)
         placeholder.set_valign(Gtk.Align.CENTER)
         icon = Gtk.Image.new_from_icon_name('preferences-desktop-wallpaper-symbolic')
         icon.set_pixel_size(56)
