@@ -21,11 +21,56 @@ Veilpaper is an experimental GNOME wallpaper manager that controls **GDM login**
 | First-time GDM install review | New read-only, fail-closed resource/RPM verification; no live installer or authorization |
 | One-command user launcher | **PASS:** installed `~/.local/bin/veilpaper` on Fedora 44, ran status, lock set, and RPM baseline with no GDM writes |
 | Fedora 44 stock-RPM integration | **PASS** in isolated container: stock RPM, portable candidate build, first-time install-check, five transaction simulations, unchanged GDM theme |
+| Native GNOME GUI (GTK4 + libadwaita) | Experimental image picker, lock preview/apply/restore, read-only login preview/status; virtual-display and live Wayland testing pending |
 | Install/restore across machines | **Not ready** |
 
 The login tool requires a specific verified original GDM checksum. It will refuse unknown host originals, and that is intentional. **Do not apply the login theme tool on another system.**
 
 The lock extension uses GNOME Shell private APIs. Full regression tests—including normal password unlock, extension disable, upgrade effects, and SELinux behavior—remain outstanding.
+
+## Native GNOME GUI prototype
+
+Veilpaper now includes a **GTK4/libadwaita** application. It uses the existing
+Veilpaper CLI backend for lock-screen writes; login/GDM controls remain
+**read-only** until a separate portable, privileged installer is qualified.
+The GUI offers an image preview before applying, a default-lock reset,
+current lock extension status, a login image preview (when present) and GDM
+baseline status. It does not require sudo and cannot modify the desktop wallpaper.
+
+Fedora package prerequisites:
+
+```bash
+sudo dnf install python3-gobject gtk4 libadwaita
+```
+
+Preview directly from the repository, before installing:
+
+```bash
+python3 gui/veilpaper_gui.py
+```
+
+Add **Veilpaper** to the GNOME Applications menu using the separate optional
+GUI launcher (this **does not** replace the working `veilpaper` CLI):
+
+```bash
+python3 scripts/gui_install.py install
+python3 scripts/gui_install.py status
+```
+
+After installation, open **Veilpaper** from GNOME's application overview, or
+run `~/.local/bin/veilpaper-gui`. To remove *only* the GUI launcher and GUI
+bundle (without touching the CLI, images, GDM files, or lock extension):
+
+```bash
+python3 scripts/gui_install.py uninstall
+```
+
+This is an experimental app, not a final Fedora RPM/Flatpak. The launcher
+bundles a separate copy of the shared Python backend so existing installed
+development CLIs remain untouched. The final packaging plan will combine
+these into one updateable distribution. The Fedora 44 GUI smoke workflow
+uses Xvfb inside a disposable container; a real GNOME Wayland visual and
+interaction test is still required.
 
 ## Isolated Fedora 44 stock-theme integration
 
@@ -143,6 +188,9 @@ The CLI deliberately does **not** automatically log users out, restart GDM, or i
 
 - `veilpaper.py`: unified development CLI (one user command)
 - `scripts/user_install.py`: install/verify/remove an unprivileged `veilpaper` command with an allowlisted source bundle
+- `gui/veilpaper_gui.py`: GTK4/libadwaita desktop UI with preview and lock actions
+- `gui/backend.py`: portable non-GTK adapter to the existing lock/GDM backends
+- `scripts/gui_install.py`: optional user-only Applications menu launcher, independently uninstallable
 - `experiments/gdm/fedora_wallpaper_manager_v02.py`: validated, host-specific GDM backend
 - `experiments/gdm/preflight.py`: read-only GNOME 50 theme structure/ownership-independent inspection
 - `experiments/gdm/rpm_baseline.py`: read-only installed RPM digest/size comparison
