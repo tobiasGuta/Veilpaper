@@ -36,23 +36,56 @@ def extension_dir():
     return Path.home() / '.local/share/gnome-shell/extensions' / UUID
 
 
-def image_type(image):
+def image_type(image, *, allow_other=False):
     if image.is_symlink() or not image.is_file():
-        fail(f'Expected a regular PNG/JPEG image: {image}')
+        fail(f'Expected a regular image file: {image}')
     if not 10 <= image.stat().st_size <= MAX_IMAGE_BYTES:
         fail('Wallpaper must be between 10 bytes and 25 MiB.')
     with image.open('rb') as f:
-        header = f.read(12)
+        header = f.read(16)
     if header.startswith(b'\x89PNG\r\n\x1a\n'):
         return 'png'
     if header.startswith(b'\xff\xd8\xff'):
         return 'jpg'
-    fail('Only PNG/JPEG files are supported.')
+    if allow_other:
+        return None
+    fail('Image data is not PNG or JPEG.')
+
+
+def convert_to_png(source, destination):
+    """Decode a non-PNG/JPEG GNOME-readable image and save real PNG bytes.
+
+    This uses the host's GNOME GdkPixbuf decoder instead of trusting extensions.
+    Conversion is deliberately capped to avoid huge image allocations.
+    """
+    try:
+        import gi
+        gi.require_version('GdkPixbuf', '2.0')
+        from gi.repository import GdkPixbuf
+    except (ImportError, ValueError) as error:
+        fail('This image is not PNG/JPEG. GNOME image conversion needs '
+             'python3-gobject (PyGObject), or export the image as PNG first: '
+             f'{error}')
+    try:
+        info, width, height = GdkPixbuf.Pixbuf.get_file_info(str(source))
+        if info is None:
+            fail('GNOME could not identify the input image format. '
+                 'Try exporting it as a genuine PNG.')
+        if width < 1 or height < 1 or width * height > 32_000_000:
+            fail(f'Input dimensions {width}x{height} exceed the 32-megapixel limit.')
+        pixbuf = GdkPixbuf.Pixbuf.new_from_file(str(source))
+        if pixbuf is None or not pixbuf.savev(str(destination), 'png', [], []):
+            fail('GNOME could not convert this image into PNG.')
+    except RuntimeError:
+        raise
+    except Exception as error:
+        fail(f'GNOME could not decode or convert this image: {error}')
 
 
 def set_lock(image):
     require_user()
-    kind = image_type(image)
+    original_kind = image_type(image, allow_other=True)
+    kind = original_kind or 'png'
     dest = data_dir()
     if dest.is_symlink():
         fail('Wallpaper data directory is a symlink.')
@@ -62,20 +95,26 @@ def set_lock(image):
     if other.is_dir() and not other.is_symlink():
         fail(f'Unexpected directory where wallpaper should be: {other}')
     fd, temp = tempfile.mkstemp(dir=str(dest), prefix='.veilpaper-')
+    os.close(fd)
     try:
-        with os.fdopen(fd, 'wb') as target, image.open('rb') as source:
-            shutil.copyfileobj(source, target)
-            target.flush()
-            os.fsync(target.fileno())
+        if original_kind:
+            with open(temp, 'wb') as target, image.open('rb') as source:
+                shutil.copyfileobj(source, target)
+                target.flush()
+                os.fsync(target.fileno())
+        else:
+            convert_to_png(image, Path(temp))
         os.chmod(temp, 0o600)
         if image_type(Path(temp)) != kind:
-            fail('Source changed during copy.')
+            fail('Output image did not pass format verification.')
         os.replace(temp, name)
     finally:
         if os.path.lexists(temp):
             os.unlink(temp)
     if os.path.lexists(other):
         other.unlink()
+    if original_kind is None:
+        print('Converted GNOME-readable source image to PNG.')
     print(f'Lock wallpaper selected: {name}')
     print('Next lock (Super+L) should show this image; login/desktop are untouched.')
 
