@@ -16,13 +16,15 @@ Veilpaper is an experimental GNOME wallpaper manager that controls **GDM login**
 | Lock image handling | **Visual PASS** after real WebP-to-PNG conversion; resulting file identified as `image/png` |
 | GDM portability preflight | Read-only structural inspection implemented; not a generic apply or restore mechanism |
 | RPM baseline comparison | Read-only active/backup SHA-256 comparison against installed package metadata; **18/18 tests PASS** on Fedora 44 |
-| Portable GDM candidate builder | Experimental unprivileged build from an RPM-matching baseline; not an installer, not yet tested on Fedora |
-| GDM transaction simulation | Fixture-only journaled install/rollback and interruption tests; **not enabled against live GDM** |
+| Portable GDM candidate builder | **PASS** on Fedora 44 stock RPM in container and full VM; unprivileged build only |
+| GDM transaction simulation | Five disposable fixture recovery cases and four process-SIGKILL fixture cases **PASS** in Fedora full VM |
 | First-time GDM install review | New read-only, fail-closed resource/RPM verification; no live installer or authorization |
 | One-command user launcher | **PASS:** installed `~/.local/bin/veilpaper` on Fedora 44, ran status, lock set, and RPM baseline with no GDM writes |
 | Fedora 44 stock-RPM integration | **PASS** in isolated container: stock RPM, portable candidate build, first-time install-check, five transaction simulations, unchanged GDM theme |
-| Native GNOME GUI (GTK4 + libadwaita) | **Lock workflow visually PASS** on Fedora 44 GNOME Wayland; login selection and candidate compilation added, host testing pending |
-| Disposable Fedora VM admission | Strict root/full-VM/marker guard plus read-only stock RPM and five fixture recovery checks; **real VM run not yet done** |
+| Native GNOME GUI (GTK4 + libadwaita) | **Lock workflow and login build-only preview/details visually PASS** on Fedora 44 GNOME Wayland |
+| Disposable Fedora VM admission | **PASS** in disposable Fedora 44 full VM; read-only RPM review, five recoveries, four SIGKILL fixture tests |
+| Real GDM install/reboot/restore (guest-only) | **PASS** in disposable Fedora 44 VM, including original SHA-256, mode, SELinux label, timestamp and clean RPM verification |
+| Real GDM post-swap SIGKILL recovery | New separate disposable full-VM qualification **pending**; standard desktop Apply remains disabled |
 | Install/restore across machines | **Not ready** |
 
 The login tool requires a specific verified original GDM checksum. It will refuse unknown host originals, and that is intentional. **Do not apply the login theme tool on another system.**
@@ -31,7 +33,7 @@ The lock extension uses GNOME Shell private APIs. Full regression tests—includ
 
 ## VM-only qualification and candidate details (experimental)
 
-**Verified CI checkpoint (October 31, 2026):** [131 Python tests PASS](https://github.com/tobiasGuta/Veilpaper/actions/runs/41244248255) and [Fedora 44 full-VM read-only admission plus SIGKILL fixture recovery PASS](https://github.com/tobiasGuta/Veilpaper/actions/runs/41240345815). The new [VM-only REAL GDM transaction trial](experiments/gdm/REAL_GDM_VM_TRIAL.md) is separate, and its [install/reboot/restore workflow](https://github.com/tobiasGuta/Veilpaper/actions/runs/41244248252) must pass before any real-resource qualification is claimed. The GUI still cannot install a login wallpaper.
+**Verified CI checkpoint (October 31, 2026):** [Fedora full-VM admission and fixture SIGKILL recovery PASS](https://github.com/tobiasGuta/Veilpaper/actions/runs/41240345815), followed by [real GDM install, reboot and byte-for-byte restore PASS](https://github.com/tobiasGuta/Veilpaper/actions/runs/41245722339). A separate [real-theme post-swap SIGKILL recovery run](https://github.com/tobiasGuta/Veilpaper/actions/runs/41247600260) is underway and is **not yet qualified**. The production GUI still cannot install a login wallpaper.
 
 
 
