@@ -15,8 +15,9 @@ if ! grep -qE '^Fedora release 44' /etc/fedora-release; then
   exit 1
 fi
 dnf install -y --setopt=install_weak_deps=False \
-  python3 python3-gobject gtk4 libadwaita cairo-gobject xorg-x11-server-Xvfb xorg-x11-xauth
+  python3 python3-gobject gtk4 libadwaita cairo-gobject gobject-introspection xorg-x11-server-Xvfb xorg-x11-xauth
 command -v xvfb-run
+rpm -q --whatprovides /usr/lib64/girepository-1.0/cairo-1.0.typelib
 
 # Test actual GTK/libadwaita widget creation on an isolated virtual display.
 GDK_BACKEND=x11 xvfb-run -a python3 - <<'PY'
