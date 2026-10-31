@@ -66,7 +66,7 @@ previews and a centered **Adw.Clamp** for readable, responsive layouts.
 
 ### Adaptive two-panel interface (experimental)
 
-**CI:** [Responsive GUI smoke PASS](https://github.com/tobiasGuta/Veilpaper/actions/runs/41236769207), including width clamp, horizontal two-panel structure, whole-image preview and status checks. GTK4/libadwaita window creation and all 88 Python backend/installer tests passed.
+**CI:** [Responsive GUI smoke PASS](https://github.com/tobiasGuta/Veilpaper/actions/runs/41236769207), including width clamp, horizontal two-panel structure, whole-image preview and status checks. GTK4/libadwaita window creation and all 90 Python backend/installer tests passed.
 
 Before updating the no-overwrite installed GUI bundle, close Veilpaper and preview the latest checkout with:
 
@@ -116,6 +116,31 @@ development CLIs remain untouched. The final packaging plan will combine
 these into one updateable distribution. The [Fedora 44 GUI smoke test](https://github.com/tobiasGuta/Veilpaper/actions/runs/41236164174)
 **PASSED**, creating the GTK4/libadwaita window under Xvfb in an isolated
 container. A real GNOME Wayland visual and interaction test is still required.
+
+### Visual polish checkpoint
+
+The next development preview retains the **tested two-panel GNOME UI** and
+improves the small details rather than redesigning the layout:
+
+- Original Veilpaper **SVG application icon**, used by the desktop launcher and
+  the About window; bundled with the GUI, not written into system directories.
+- A recognizable **padlock** for Lock Screen and a separate users icon for the
+  login screen.
+- A single primary button at a time: **Choose image** is emphasized before
+  selection; **Apply wallpaper** becomes emphasized when a new image is staged.
+  Applying still requires the user's click.
+- A balanced 1120 × 740 default window size (the adaptive breakpoints remain).
+- Native **About Veilpaper** window with development version, project site and
+  issue tracker, opened by the About icon in the header.
+
+The installer uses manifest format **v2** for the icon asset and still accepts
+v1 manifests for safe uninstall-and-upgrade. Existing wallpapers, the GDM
+theme, GNOME extension and terminal CLI are not touched by a GUI update.
+
+Close the old GUI, pull the branch, preview with
+`python3 gui/veilpaper_gui.py`, and only if satisfied run
+`python3 scripts/gui_install.py uninstall` followed by
+`python3 scripts/gui_install.py install`.
 
 ## Isolated Fedora 44 stock-theme integration
 
