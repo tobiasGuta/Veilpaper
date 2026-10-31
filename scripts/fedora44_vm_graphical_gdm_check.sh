@@ -19,6 +19,7 @@ if [[ ! -c /dev/kvm || ! -r /dev/kvm || ! -w /dev/kvm ]]; then
 fi
 [[ -f "$GITHUB_WORKSPACE/experiments/gdm/vm_gate.py" ]] || exit 1
 [[ -f "$GITHUB_WORKSPACE/scripts/qemu_capture_greeter.py" ]] || exit 1
+[[ -f "$GITHUB_WORKSPACE/scripts/verify_qemu_gdm_greeter.py" ]] || exit 1
 screenshots="$RUNNER_TEMP/veilpaper-gdm-visual"
 mkdir -p "$screenshots"
 chmod 0700 "$screenshots"
@@ -30,8 +31,8 @@ verify_greeter() {
   local attempt=0
   while (( attempt < 45 )); do
     if ssh "${ssh_opts[@]}" "$guest" \
-      'systemctl is-active --quiet gdm && pgrep -u gdm -f gnome-shell >/dev/null' 2>/dev/null; then
-      echo 'GREETER_PROCESS_CONFIRMED: graphical gdm and GNOME Shell running as gdm'
+      'python3 "$HOME/veilpaper/scripts/verify_qemu_gdm_greeter.py"' 2>/dev/null; then
+      echo 'GREETER_PROCESS_CONFIRMED: seat0 Class=greeter and matching GNOME Shell --mode=gdm'
       return 0
     fi
     attempt=$((attempt + 1))
@@ -158,6 +159,7 @@ tar -C "$GITHUB_WORKSPACE" -cf - \
   experiments/gdm/process_crash_probe.py \
   experiments/gdm/vm_gate.py \
   experiments/gdm/vm_real_transaction.py \
+  scripts/verify_qemu_gdm_greeter.py \
   | ssh "${ssh_opts[@]}" "$guest" \
     'mkdir -p "$HOME/veilpaper" && tar -xf - -C "$HOME/veilpaper"'
 
