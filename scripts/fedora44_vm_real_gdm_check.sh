@@ -170,7 +170,7 @@ sudo chown root:root /etc/veilpaper-disposable-vm-GDM-write-test
 sudo chmod 0600 /etc/veilpaper-disposable-vm-GDM-write-test
 
 sha256sum "$theme" | cut -d' ' -f1 > "$HOME/stock-before.sha"
-stat -c '%u:%g:%a:%C' "$theme" > "$HOME/stock-before.meta"
+stat -c '%u:%g:%a:%C:%y' "$theme" > "$HOME/stock-before.meta"
 sha256sum "$HOME/vm-candidate.gresource" | cut -d' ' -f1 > "$HOME/candidate.sha"
 cat /proc/sys/kernel/random/boot_id > "$HOME/boot-before.id"
 sudo python3 experiments/gdm/vm_real_transaction.py install \
@@ -179,7 +179,7 @@ sudo python3 experiments/gdm/vm_real_transaction.py install \
 sudo python3 experiments/gdm/vm_real_transaction.py status \
   --confirm 'I AUTHORIZE DISPOSABLE FEDORA 44 VM GDM WRITES ONLY'
 [[ "$(sha256sum "$theme" | cut -d' ' -f1)" == "$(cat "$HOME/candidate.sha")" ]]
-[[ "$(stat -c '%u:%g:%a:%C' "$theme")" == "$(cat "$HOME/stock-before.meta")" ]]
+[[ "$(stat -c '%u:%g:%a:%C:%y' "$theme")" == "$(cat "$HOME/stock-before.meta")" ]]
 gresource list "$theme" | grep -F '/org/gnome/shell/theme/fedora-login-wallpaper.png'
 echo "PASS: actual GDM resource swapped and original metadata preserved INSIDE VM"
 GUEST
@@ -209,15 +209,15 @@ set -Eeuo pipefail
 cd "$HOME/veilpaper"
 theme=/usr/share/gnome-shell/gnome-shell-theme.gresource
 [[ "$(sha256sum "$theme" | cut -d' ' -f1)" == "$(cat "$HOME/candidate.sha")" ]]
-[[ "$(stat -c '%u:%g:%a:%C' "$theme")" == "$(cat "$HOME/stock-before.meta")" ]]
+[[ "$(stat -c '%u:%g:%a:%C:%y' "$theme")" == "$(cat "$HOME/stock-before.meta")" ]]
 sudo python3 experiments/gdm/vm_real_transaction.py restore \
   --confirm 'I AUTHORIZE DISPOSABLE FEDORA 44 VM GDM WRITES ONLY'
 [[ "$(sha256sum "$theme" | cut -d' ' -f1)" == "$(cat "$HOME/stock-before.sha")" ]]
-[[ "$(stat -c '%u:%g:%a:%C' "$theme")" == "$(cat "$HOME/stock-before.meta")" ]]
+[[ "$(stat -c '%u:%g:%a:%C:%y' "$theme")" == "$(cat "$HOME/stock-before.meta")" ]]
 sudo rpm -V gnome-shell
 sudo python3 experiments/gdm/vm_real_transaction.py status \
   --confirm 'I AUTHORIZE DISPOSABLE FEDORA 44 VM GDM WRITES ONLY'
-echo "PASS: GDM theme restored byte-for-byte after Fedora VM reboot"
+echo "PASS: GDM theme restored byte-for-byte after Fedora VM reboot; original RPM mtime retained"
 echo "PASS: original owner, mode and SELinux context preserved; RPM verification clean"
 RESTORE_GUEST
 
