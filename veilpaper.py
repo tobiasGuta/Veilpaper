@@ -18,6 +18,7 @@ GDM_PREFLIGHT = ROOT / 'experiments/gdm/preflight.py'
 GDM_RPM_BASELINE = ROOT / 'experiments/gdm/rpm_baseline.py'
 GDM_PORTABLE_BUILDER = ROOT / 'experiments/gdm/portable_build.py'
 GDM_FIXTURE_TRANSACTION = ROOT / 'experiments/gdm/fixture_transaction.py'
+GDM_INSTALL_REVIEW = ROOT / 'experiments/gdm/install_review.py'
 EXTENSION_SOURCE = ROOT / 'experiments/lockscreen/lockscreen'
 UUID = 'lockscreen@veilpaper.tobiasguta'
 MAX_IMAGE_BYTES = 25 * 1024 * 1024
@@ -234,6 +235,17 @@ def transaction_check_login(baseline, candidate):
     return 0
 
 
+def install_review_login(candidate):
+    """Inspect a first-time installer candidate read-only. Never installs."""
+    require_user()
+    spec = importlib.util.spec_from_file_location('veilpaper_install_review', GDM_INSTALL_REVIEW)
+    if spec is None or spec.loader is None:
+        fail(f'GDM install reviewer missing: {GDM_INSTALL_REVIEW}')
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.show(module.review(candidate))
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     subs = parser.add_subparsers(dest='command', required=True)
@@ -256,6 +268,9 @@ def main(argv=None):
         help='Simulate candidate installation, recovery and restore using temporary fixtures only')
     tx_check.add_argument('baseline', type=Path, help='Read-only source: original GDM resource')
     tx_check.add_argument('candidate', type=Path, help='Read-only source: built candidate resource')
+    check = login_sub.add_parser('install-check',
+        help='Review a GDM candidate and installed RPM baseline without system changes')
+    check.add_argument('candidate', type=Path, help='Compiled Veilpaper GDM candidate')
     login_build = login_sub.add_parser('build', help='Build candidate without changing GNOME')
     login_build.add_argument('image', type=Path)
     login_build.add_argument('--output', type=Path,
@@ -288,6 +303,8 @@ def main(argv=None):
             if args.action == 'transaction-check':
                 return transaction_check_login(
                     args.baseline.expanduser(), args.candidate.expanduser())
+            if args.action == 'install-check':
+                return install_review_login(args.candidate.expanduser())
             backend = gdm()
             if args.action == 'build':
                 backend.build(args.image.expanduser(), args.output.expanduser())
