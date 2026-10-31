@@ -1,0 +1,27 @@
+name: Fedora 44 GUI smoke (isolated)
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - experimental/gnome50-lockscreen
+    paths:
+      - gui/**
+      - tests/test_gui_backend.py
+      - scripts/fedora44_gui_check.sh
+      - .github/workflows/fedora44-gui.yml
+
+permissions:
+  contents: read
+
+jobs:
+  fedora44-gtk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Import libadwaita and instantiate GUI on Fedora 44 virtual display
+        run: |
+          docker run --rm \
+            --mount type=bind,src="$PWD",dst=/src,readonly \
+            fedora:44 /bin/bash /src/scripts/fedora44_gui_check.sh
