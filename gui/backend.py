@@ -1,22 +1,28 @@
-"""Non-GTK interface between Veilpaper's graphical app and existing CLI.
+"""Non-GTK GUI adapter to Veilpaper's verified wallpaper tools.
 
-No system writes. Login operations are READ-ONLY. Lock wallpaper updates
-reuse the same validated CLI functions as 'veilpaper lock set/restore'.
+Lock operations retain existing user-level CLI behavior. Login operations
+read GDM/RPM state and may BUILD a candidate only in the user's private cache.
+No privilege escalation, GDM installation or live-login changes are offered.
 """
 from __future__ import annotations
 
 from contextlib import redirect_stdout
 from dataclasses import dataclass
+from contextlib import ExitStack
 import importlib.util
 from io import StringIO
 import os
 from pathlib import Path
+import hashlib
 import shutil
 import subprocess
+import tempfile
 
 PROJECT = Path(__file__).resolve().parents[1]
 CLI = PROJECT / 'veilpaper.py'
 RPM = PROJECT / 'experiments/gdm/rpm_baseline.py'
+PORTABLE = PROJECT / 'experiments/gdm/portable_build.py'
+REVIEW = PROJECT / 'experiments/gdm/install_review.py'
 LOGIN_RESOURCE = Path('/usr/share/gnome-shell/gnome-shell-theme.gresource')
 LOGIN_ASSET = '/org/gnome/shell/theme/fedora-login-wallpaper.'
 EXTENSION_UUID = 'lockscreen@veilpaper.tobiasguta'
@@ -126,3 +132,80 @@ def login_preview() -> tuple[bytes, str] | None:
         except (OSError, subprocess.TimeoutExpired):
             return None
     return None
+
+
+@dataclass(frozen=True)
+class LoginCandidate:
+    path: Path
+    digest: str
+    baseline_digest: str
+    resource: str
+
+
+def _candidate_parent() -> Path:
+    """Confine unpublished candidates to a private, user-owned cache folder."""
+    base = Path(os.environ.get('XDG_CACHE_HOME') or Path.home() / '.cache').expanduser()
+    # The immediate cache root must be an existing real directory. Never
+    # interpret an arbitrary symlink as a safe place to save candidates.
+    if base.is_symlink():
+        raise RuntimeError('Cache root is a symlink; refusing to store a GDM candidate.')
+    base.mkdir(parents=True, exist_ok=True)
+    if not base.is_dir() or base.stat().st_uid != os.getuid():
+        raise RuntimeError('Cache root must be a regular user-owned directory.')
+    target = base / 'veilpaper' / 'login-candidates'
+    for directory in (target.parent, target):
+        if directory.is_symlink():
+            raise RuntimeError('Veilpaper cache directory is a symlink.')
+        directory.mkdir(mode=0o700, exist_ok=True)
+        if not directory.is_dir() or directory.stat().st_uid != os.getuid():
+            raise RuntimeError('Veilpaper candidate directory is unsafe.')
+        directory.chmod(0o700)
+    return target
+
+
+def prepare_login_candidate(source: Path) -> LoginCandidate:
+    """Build and verify a GDM candidate, without writing to GDM or its backup.
+
+    Importantly this DOES NOT call first-time install-check: an existing
+    customized theme is expected on the development machine. Review the new
+    candidate relative to the RPM-matching stock baseline instead.
+    """
+    if os.geteuid() == 0:
+        raise RuntimeError('Never prepare Veilpaper login themes as root.')
+    cli = _load(CLI, 'veilpaper_gui_cli_candidate')
+    portable = _load(PORTABLE, 'veilpaper_gui_portable_builder')
+    reviewer = _load(REVIEW, 'veilpaper_gui_candidate_review')
+    source = Path(source).expanduser()
+    kind = cli.image_type(source, allow_other=True)
+    baseline, baseline_digest = portable.select_baseline()
+    cache = _candidate_parent()
+    job = Path(tempfile.mkdtemp(prefix='prepared-', dir=str(cache)))
+    try:
+        image = source
+        if kind is None:
+            image = job / 'normalized.png'
+            cli.convert_to_png(source, image)
+            if cli.image_type(image) != 'png':
+                raise RuntimeError('Converted input did not pass PNG validation.')
+        output = job / 'candidate.gresource'
+        with redirect_stdout(StringIO()):
+            portable.build(image, output)
+        resource, _count = reviewer._resource_differences(baseline, output)
+        # Demand a current RPM-matching baseline throughout build/inspection.
+        if (portable.select_baseline() != (baseline, baseline_digest) or
+                portable.gdm.sha256(baseline) != baseline_digest):
+            raise RuntimeError('The verified RPM baseline changed during preparation.')
+        if not resource.endswith(('.png', '.jpg')):
+            raise RuntimeError('Candidate contains an unexpected wallpaper asset.')
+        if image != source:
+            image.unlink()
+        output.chmod(0o600)
+        return LoginCandidate(
+            path=output,
+            digest=portable.gdm.sha256(output),
+            baseline_digest=baseline_digest,
+            resource=resource,
+        )
+    except BaseException:
+        shutil.rmtree(job)
+        raise
