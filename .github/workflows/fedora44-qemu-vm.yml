@@ -9,6 +9,8 @@ on:
       - .github/workflows/fedora44-qemu-vm.yml
       - scripts/fedora44_qemu_vm_check.sh
       - experiments/gdm/vm_gate.py
+      - experiments/gdm/process_crash_probe.py
+      - experiments/gdm/fixture_transaction.py
 
 permissions:
   contents: read
