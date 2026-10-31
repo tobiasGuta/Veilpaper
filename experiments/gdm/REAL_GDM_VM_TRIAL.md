@@ -85,3 +85,24 @@ power loss and visible GDM graphical sign-in. A successful run does not permit
 the GUI to install GDM themes or authorize ordinary host writes.
 
 [Check the first post-swap crash VM trial](https://github.com/tobiasGuta/Veilpaper/actions/runs/41247600260).
+
+## Remaining real-resource interruption checkpoints
+
+The [three-checkpoint QEMU workflow](../../.github/workflows/fedora44-vm-remaining-crash.yml) now starts a **separate Fedora 44 full VM and overlay for each** of these scenarios: `install-intent` (original resource + prepared install journal), `restore-intent` (candidate resource + prepared restore journal), and `restore-swap` (original resource + prepared restore journal). The previously passing `install-swap` recovery is retained as a separate workflow, unchanged.
+
+Each real-resource trial checks privileged-process SIGKILL (exit 137), exact journal phase, verified immutable original backup, original-owner/mode/SELinux/mtime, the expected resource SHA-256 **before and after a full VM reboot**, and a fresh-process restoration followed by `rpm -V gnome-shell`. Tests are limited to disposable guests with both root-owned markers and explicit guest-only confirmation; the normal GUI still cannot invoke the injector.
+
+**Status:** The new matrix is an experimental trial, not an accepted qualification until all three GitHub jobs complete successfully. A failure in one job does not negate already verified earlier milestones. Physical disk power-loss recovery is not established by SIGKILL.
+
+## Graphical GDM qualification — next acceptance gate
+
+A headless Fedora Cloud VM cannot prove what a person sees at the GDM greeter. Graphical qualification must use a separate **disposable Fedora 44 GNOME Workstation full VM** with a genuine GDM greeter under a real virtual display, never the user's laptop. The experiment should:
+
+1. Capture a clean stock greeter image in the virtual display for comparison, without exposing passwords or personal information.
+2. Validate login candidate CSS and wallpaper resource on the stock GNOME Shell 50 and GDM package versions, with matching RPM preflight and VM-only guard.
+3. Install the candidate **only** inside the VM, boot to the real graphical GDM greeter, then independently confirm the wallpaper is visible and properly cropped in the greeter, rather than assuming resource integrity implies a visual pass.
+4. Verify user login, lock, unlock, session return, reboot, and both light/dark style behavior; avoid confusing the GNOME lock screen with the GDM login greeter.
+5. Restore the original GDM theme via the VM-only transaction, reboot and verify the stock graphical greeter and clean `rpm -V gnome-shell`.
+6. Ensure an independent hypervisor snapshot rollback and accessible emergency console exist if GDM is unusable. Do not run these tests against an existing customized GDM installation.
+
+**Until graphical evidence and full interruption/recovery qualifications are verified, Apply to login screen stays disabled.**
