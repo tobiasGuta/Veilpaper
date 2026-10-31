@@ -1,0 +1,29 @@
+name: Fedora 44 full VM admission (read-only)
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - experimental/gnome50-lockscreen
+    paths:
+      - .github/workflows/fedora44-qemu-vm.yml
+      - scripts/fedora44_qemu_vm_check.sh
+      - experiments/gdm/vm_gate.py
+
+permissions:
+  contents: read
+
+concurrency:
+  group: veilpaper-readonly-fedora44-vm
+  cancel-in-progress: true
+
+jobs:
+  full-vm-readonly-admission:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate VM harness syntax
+        run: bash -n scripts/fedora44_qemu_vm_check.sh
+      - name: Boot disposable Fedora 44 QEMU VM and run read-only admission
+        run: bash scripts/fedora44_qemu_vm_check.sh
