@@ -17,6 +17,7 @@ GDM_BACKEND = ROOT / 'experiments/gdm/fedora_wallpaper_manager_v02.py'
 GDM_PREFLIGHT = ROOT / 'experiments/gdm/preflight.py'
 GDM_RPM_BASELINE = ROOT / 'experiments/gdm/rpm_baseline.py'
 GDM_PORTABLE_BUILDER = ROOT / 'experiments/gdm/portable_build.py'
+GDM_FIXTURE_TRANSACTION = ROOT / 'experiments/gdm/fixture_transaction.py'
 EXTENSION_SOURCE = ROOT / 'experiments/lockscreen/lockscreen'
 UUID = 'lockscreen@veilpaper.tobiasguta'
 MAX_IMAGE_BYTES = 25 * 1024 * 1024
@@ -219,6 +220,20 @@ def portable_build_login(image, output):
     return module.build(image, output)
 
 
+def transaction_check_login(baseline, candidate):
+    """Run disposable-only recovery simulations; read source files, no GDM writes."""
+    require_user()
+    spec = importlib.util.spec_from_file_location('veilpaper_gdm_fixture_transaction', GDM_FIXTURE_TRANSACTION)
+    if spec is None or spec.loader is None:
+        fail(f'GDM fixture simulator missing: {GDM_FIXTURE_TRANSACTION}')
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    for label in module.simulate(baseline, candidate):
+        print('PASS —', label)
+    print('DISPOSABLE ONLY: original input files, GDM, and backups were not changed.')
+    return 0
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     subs = parser.add_subparsers(dest='command', required=True)
@@ -237,6 +252,10 @@ def main(argv=None):
     portable_build.add_argument('image', type=Path)
     portable_build.add_argument('--output', type=Path,
         default=Path.home() / 'Downloads' / 'veilpaper-portable-candidate.gresource')
+    tx_check = login_sub.add_parser('transaction-check',
+        help='Simulate candidate installation, recovery and restore using temporary fixtures only')
+    tx_check.add_argument('baseline', type=Path, help='Read-only source: original GDM resource')
+    tx_check.add_argument('candidate', type=Path, help='Read-only source: built candidate resource')
     login_build = login_sub.add_parser('build', help='Build candidate without changing GNOME')
     login_build.add_argument('image', type=Path)
     login_build.add_argument('--output', type=Path,
@@ -266,6 +285,9 @@ def main(argv=None):
             if args.action == 'portable-build':
                 portable_build_login(args.image.expanduser(), args.output.expanduser())
                 return 0
+            if args.action == 'transaction-check':
+                return transaction_check_login(
+                    args.baseline.expanduser(), args.candidate.expanduser())
             backend = gdm()
             if args.action == 'build':
                 backend.build(args.image.expanduser(), args.output.expanduser())
