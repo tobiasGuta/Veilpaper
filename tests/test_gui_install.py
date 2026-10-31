@@ -66,7 +66,8 @@ class GUIInstallTests(unittest.TestCase):
         manifest = self.app / installer.MANIFEST
         record = json.loads(manifest.read_text())
         record['format'] = 1
-        del record['files'][installer.ICON_BUNDLE_PATH]
+        record['files'] = {key: value for key, value in record['files'].items()
+                           if key in installer.LEGACY_FILES}
         record['desktop'] = hashlib.sha256(self.desktop.read_bytes()).hexdigest()
         manifest.write_text(json.dumps(record))
         self.assertEqual(installer.check(self.prefix), ('INSTALLED', []))
