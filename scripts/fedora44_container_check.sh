@@ -80,6 +80,15 @@ assert source.read_bytes() == before
 print('PASS: GUI prepared an independently checked, private GDM candidate; original image unchanged.')
 PY
 
+echo "=== Confirm VM-only gate refuses running in a container ==="
+if python3 /src/experiments/gdm/vm_gate.py \
+  --candidate /tmp/veilpaper-test/candidate.gresource \
+  --confirm 'DISPOSABLE FEDORA 44 VM'; then
+  echo "ERROR: VM-only gate incorrectly admitted a container." >&2
+  exit 1
+fi
+echo "PASS: Full-VM-only admission refuses this disposable container."
+
 echo "=== Verify journal recovery using disposable paths only ==="
 runuser -u veiltest -- python3 /src/veilpaper.py login transaction-check \
   "$target" /tmp/veilpaper-test/candidate.gresource
