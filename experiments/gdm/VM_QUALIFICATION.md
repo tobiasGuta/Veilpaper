@@ -2,6 +2,33 @@
 
 **Do not run this on the main laptop, an existing production VM, or Docker.** This is an experimental research procedure, not authorization to install or restore a live GDM theme. The VM-specific tool deliberately contains no live GDM writer.
 
+## Reproducible GitHub Actions full-VM test (read-only)
+
+The experimental [Fedora 44 full-VM admission workflow](../../.github/workflows/fedora44-qemu-vm.yml)
+uses `scripts/fedora44_qemu_vm_check.sh` to boot a **separate full-machine
+QEMU guest** on an ephemeral GitHub-hosted Linux runner. It downloads the
+official Fedora Cloud Base 44 QEMU image, checks its pinned SHA-256 against
+Fedora's published digest, creates a disposable copy-on-write disk and
+cloud-init SSH identity, transfers only required Veilpaper source files, and
+runs the exact read-only VM admission gate inside the guest.
+
+A full VM requires no hardware KVM acceleration: if unavailable, the harness
+explicitly uses **QEMU TCG software machine emulation** instead. TCG is slower,
+but it still emulates a full guest OS and is not a Docker container. Both modes
+must satisfy `systemd-detect-virt --vm` inside Fedora. KVM and TCG are separate
+from the existing Fedora container integration tests.
+
+GitHub's standard runners do not guarantee nested KVM availability. The
+workflow **fails closed** if the guest does not boot, package verification
+fails, the required marker does not block before provisioning, any of the five
+recovery simulations fail, or the original GDM resource/backup state changes.
+The CI test never installs a custom GDM theme. Its positive result must not be
+interpreted as safe graphical GDM startup or crash-safe live restoration.
+
+Do not run the CI harness on your laptop: it explicitly checks for an
+ephemeral GitHub Actions environment. Its guests are removed after the job.
+Any test still in progress or unsuccessful is **not** a full-VM qualification.
+
 ## Create a disposable environment
 
 Provision a **new Fedora 44 full virtual machine** using QEMU/KVM/libvirt, with a working console and unmodified GNOME Shell package. Take an **external hypervisor disk snapshot** first. Never expose host system or home paths as writable guest mounts.
