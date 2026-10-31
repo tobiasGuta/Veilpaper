@@ -35,6 +35,9 @@ class VMRealTransactionTests(unittest.TestCase):
         self.new = b'updated compiled GNOME theme fixture'
         self.theme.write_bytes(self.old)
         self.theme.chmod(0o644)
+        # Regression for rpm -V flag T: preserve nanosecond-precision mtime.
+        self.original_mtime_ns = 1700000000123456789
+        os.utime(self.theme, ns=(self.original_mtime_ns, self.original_mtime_ns))
         self.source.write_bytes(self.new)
         self.mock_theme = patch.object(txn, 'THEME', self.theme)
         self.mock_lab = patch.object(txn, 'LAB', self.lab)
@@ -60,7 +63,8 @@ class VMRealTransactionTests(unittest.TestCase):
 
     @contextlib.contextmanager
     def _fake_root_metadata(self):
-        metadata = {'uid': 0, 'gid': 0, 'mode': 0o644, 'xattrs': {}}
+        metadata = {'uid': 0, 'gid': 0, 'mode': 0o644,
+                    'mtime_ns': self.original_mtime_ns, 'xattrs': {}}
         with patch.object(txn, '_metadata', return_value=metadata), \
              patch.object(txn, '_verify_meta'), \
              patch.object(txn.os, 'chown', return_value=None), \
@@ -74,14 +78,31 @@ class VMRealTransactionTests(unittest.TestCase):
     def test_install_restore_real_atomic_files_on_isolated_path(self):
         self._installed()
         self.assertEqual(self.theme.read_bytes(), self.new)
+        self.assertEqual(self.theme.stat().st_mtime_ns, self.original_mtime_ns)
         self.assertEqual((self.lab / 'original.gresource').read_bytes(), self.old)
         self.assertEqual((self.lab / 'state.json').stat().st_mode & 0o777, 0o600)
         self.assertEqual(json.loads((self.lab / 'state.json').read_text())['phase'], 'installed')
         with self._fake_root_metadata():
             self.assertEqual(txn.restore(), 'VM_REAL_GDM_RESTORED')
         self.assertEqual(self.theme.read_bytes(), self.old)
+        self.assertEqual(self.theme.stat().st_mtime_ns, self.original_mtime_ns)
         self.assertEqual(txn.status(), 'restored: active=original')
         self.assertEqual((self.lab / 'original.gresource').read_bytes(), self.old)
+
+    def test_real_metadata_verification_rejects_rpm_timestamp_drift(self):
+        reference = txn._metadata(self.theme)
+        txn._verify_meta(self.theme, reference)
+        os.utime(self.theme, ns=(
+            self.original_mtime_ns,
+            self.original_mtime_ns + 1_000_000_000))
+        with self.assertRaisesRegex(txn.LabBlocked, 'timestamp'):
+            txn._verify_meta(self.theme, reference)
+
+    def test_journal_persists_exact_original_timestamp(self):
+        self._installed()
+        record = json.loads((self.lab / 'state.json').read_text())
+        self.assertEqual(record['version'], 2)
+        self.assertEqual(record['mtime_ns'], self.original_mtime_ns)
 
     def test_second_install_is_refused_without_overwriting(self):
         self._installed()
