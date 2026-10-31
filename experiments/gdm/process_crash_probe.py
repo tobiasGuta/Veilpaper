@@ -16,7 +16,6 @@ import importlib.util
 import os
 from pathlib import Path
 import signal
-import stat
 import sys
 import tempfile
 
@@ -42,15 +41,37 @@ CASES = (
 
 
 def _kill_at_checkpoint(fixture, operation: str, checkpoint: str, engine):
+    """Terminate child INSIDE the transaction, immediately after fsync.
+
+    Monkeypatching is confined to the forked child address space. The child
+    does not raise a graceful exception or run Python finally/lock cleanup.
+    """
     pid = os.fork()
     if pid == 0:
-        # Child performs the real fsynced write, then immediately dies. It
-        # must never perform a graceful cleanup in the child process.
         try:
-            try:
-                getattr(fixture, operation)(interrupt=checkpoint)
-            except engine.InjectedInterruption:
-                os.kill(os.getpid(), signal.SIGKILL)
+            if checkpoint.endswith('-intent'):
+                actual_record = fixture._record
+                expected_phase = (
+                    'install-prepared' if operation == 'apply' else 'restore-prepared')
+
+                def record_then_die(phase, base, candidate):
+                    actual_record(phase, base, candidate)
+                    if phase == expected_phase:
+                        os.kill(os.getpid(), signal.SIGKILL)
+
+                fixture._record = record_then_die
+            elif checkpoint.endswith('-swap'):
+                actual_atomic = engine._atomic_bytes
+
+                def swap_then_die(path, data, mode=0o600):
+                    actual_atomic(path, data, mode)
+                    if Path(path) == fixture.active:
+                        os.kill(os.getpid(), signal.SIGKILL)
+
+                engine._atomic_bytes = swap_then_die
+            else:
+                raise RuntimeError(f'Unknown checkpoint {checkpoint}')
+            getattr(fixture, operation)()
         except BaseException as error:
             print(f'Child failed unexpectedly: {error}', file=sys.stderr, flush=True)
         os._exit(91)
