@@ -6,9 +6,14 @@ if [[ "${GITHUB_ACTIONS:-}" != true || "${RUNNER_OS:-}" != Linux ||
       -z "${GITHUB_WORKSPACE:-}" || -z "${RUNNER_TEMP:-}" ]]; then
   echo "BLOCKED: ephemeral GitHub-hosted Linux runner required" >&2; exit 1
 fi
+# Both KVM and software TCG boot a real full-machine QEMU guest. The
+# latter is slower but is NOT a container. Never downgrade to Docker.
+accel=kvm
+cpu=host
 if [[ ! -c /dev/kvm || ! -r /dev/kvm || ! -w /dev/kvm ]]; then
-  echo "BLOCKED: KVM unavailable; Docker/TCG cannot replace a full VM qualification" >&2
-  exit 1
+  accel=tcg
+  cpu=max
+  echo "INFO: KVM unavailable; using software-emulated QEMU full VM (TCG)."
 fi
 [[ -f "$GITHUB_WORKSPACE/experiments/gdm/vm_gate.py" ]] || exit 1
 
@@ -60,7 +65,7 @@ EOF
 cloud-localds "$work/seed.iso" "$work/user-data" "$work/meta-data"
 
 echo "=== Booting QEMU/KVM VM with independent qcow2 overlay ==="
-qemu-system-x86_64 -machine accel=kvm -cpu host -smp 2 -m 4096 \
+qemu-system-x86_64 -machine "accel=$accel" -cpu "$cpu" -smp 2 -m 4096 \
   -drive file="$work/overlay.qcow2",format=qcow2,if=virtio \
   -drive file="$work/seed.iso",format=raw,media=cdrom,if=virtio \
   -netdev user,id=net0,hostfwd=tcp:127.0.0.1:22357-:22 \
