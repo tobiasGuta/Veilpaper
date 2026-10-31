@@ -21,7 +21,7 @@ Veilpaper is an experimental GNOME wallpaper manager that controls **GDM login**
 | First-time GDM install review | New read-only, fail-closed resource/RPM verification; no live installer or authorization |
 | One-command user launcher | **PASS:** installed `~/.local/bin/veilpaper` on Fedora 44, ran status, lock set, and RPM baseline with no GDM writes |
 | Fedora 44 stock-RPM integration | **PASS** in isolated container: stock RPM, portable candidate build, first-time install-check, five transaction simulations, unchanged GDM theme |
-| Native GNOME GUI (GTK4 + libadwaita) | **Fedora 44 virtual-display smoke PASS**, GUI/backend installer tests PASS; real GNOME Wayland interaction pending |
+| Native GNOME GUI (GTK4 + libadwaita) | **Visual PASS:** GUI opened on Fedora 44 GNOME Wayland, lock/login previews and extension/GDM status visible; full interaction regression pending |
 | Install/restore across machines | **Not ready** |
 
 The login tool requires a specific verified original GDM checksum. It will refuse unknown host originals, and that is intentional. **Do not apply the login theme tool on another system.**
@@ -58,8 +58,25 @@ python3 scripts/gui_install.py status
 ```
 
 After installation, open **Veilpaper** from GNOME's application overview, or
-run `~/.local/bin/veilpaper-gui`. To remove *only* the GUI launcher and GUI
-bundle (without touching the CLI, images, GDM files, or lock extension):
+run `~/.local/bin/veilpaper-gui`. The initial Fedora Wayland screenshot confirmed
+that both backgrounds render, but the lock preview was heavily cropped and the
+main cards stretched to the full maximized window width. The subsequent
+experimental refinement uses **GTK ContentFit.CONTAIN** for whole-image
+previews and a centered **Adw.Clamp** for readable, responsive layouts.
+
+The development GUI installer is intentionally **no-overwrite**. To test new
+GUI revisions after `git pull --ff-only`, close the GUI, uninstall the prior
+GUI bundle, then install the updated copy as your normal user:
+
+```bash
+python3 scripts/gui_install.py uninstall
+python3 scripts/gui_install.py install
+```
+
+This updates only the GUI launcher and its private bundle. It leaves the CLI,
+current wallpaper files, GNOME extension, GDM theme, and backups unchanged.
+To remove *only* the GUI launcher and GUI bundle
+(without touching the CLI, images, GDM files, or lock extension):
 
 ```bash
 python3 scripts/gui_install.py uninstall
