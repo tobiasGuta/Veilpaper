@@ -12,19 +12,47 @@ Veilpaper is an experimental GNOME wallpaper manager that controls **GDM login**
 | --- | --- |
 | GDM login wallpaper | **Visual PASS** after reboot: Fedora 44, GNOME Shell 50.6, GDM 50.3 |
 | Lock wallpaper extension | **Visual PASS** after `Super+L` on the same laptop; enabled and ACTIVE |
-| Unified entry point | **CLI status PASS** on Fedora 44; lock image conversion completed; **28/28 CLI/backend tests PASS** |
+| Unified entry point | **CLI status PASS** on Fedora 44; lock image conversion completed; **68/68 CLI/backend tests PASS and user-installed command verified on Fedora 44** |
 | Lock image handling | **Visual PASS** after real WebP-to-PNG conversion; resulting file identified as `image/png` |
 | GDM portability preflight | Read-only structural inspection implemented; not a generic apply or restore mechanism |
 | RPM baseline comparison | Read-only active/backup SHA-256 comparison against installed package metadata; **18/18 tests PASS** on Fedora 44 |
 | Portable GDM candidate builder | Experimental unprivileged build from an RPM-matching baseline; not an installer, not yet tested on Fedora |
 | GDM transaction simulation | Fixture-only journaled install/rollback and interruption tests; **not enabled against live GDM** |
 | First-time GDM install review | New read-only, fail-closed resource/RPM verification; no live installer or authorization |
-| One-command user launcher | Experimental `~/.local/bin/veilpaper` installer and verified uninstall, **no sudo or GDM writes** |
+| One-command user launcher | **PASS:** installed `~/.local/bin/veilpaper` on Fedora 44, ran status, lock set, and RPM baseline with no GDM writes |
+| Fedora 44 stock-RPM integration | New isolated container workflow exercises build, install-check and transaction simulation without any graphical session or host GDM writes; first CI run pending |
 | Install/restore across machines | **Not ready** |
 
 The login tool requires a specific verified original GDM checksum. It will refuse unknown host originals, and that is intentional. **Do not apply the login theme tool on another system.**
 
 The lock extension uses GNOME Shell private APIs. Full regression tests—including normal password unlock, extension disable, upgrade effects, and SELinux behavior—remain outstanding.
+
+## Isolated Fedora 44 stock-theme integration
+
+The [Fedora 44 integration workflow](.github/workflows/fedora44-integration.yml)
+starts an ephemeral `fedora:44` container with the source tree mounted **read-only**.
+It installs GNOME Shell **inside the container**, then exercises:
+- RPM verification and stock theme preflight;
+- building a portable GDM candidate as an unprivileged container user;
+- `install-check` against the pristine RPM theme;
+- the five disposable transaction simulation scenarios;
+- unchanged package-owned theme checksum after the test.
+
+This provides stronger evidence than mock-only tests, but is **not** a graphical
+GDM login test, a privileged live install, or a recovery qualification.
+
+The workflow is manually dispatchable and automatically checks its own workflow
+changes. To run the same isolated test using your existing Docker Engine, from
+the repository root:
+
+```bash
+docker run --rm \
+  --mount type=bind,src="$PWD",dst=/src,readonly \
+  fedora:44 /bin/bash /src/scripts/fedora44_container_check.sh
+```
+
+This does not require Docker Desktop or a second Docker Engine. Package
+installation occurs **inside the disposable container**.
 
 ## Install the single Veilpaper command (experimental, per-user)
 
