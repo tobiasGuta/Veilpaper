@@ -11,7 +11,17 @@ actors. It never intercepts input or modifies authentication.
 
 ## Test (user session only; no sudo)
 
-1. Extract this archive anywhere, such as `~/Downloads/Veilpaper-prototype`.
+1. Clone the experimental branch and enter the prototype directory:
+
+   ```bash
+   git clone --branch experimental/gnome50-lockscreen \
+     https://github.com/tobiasGuta/Veilpaper.git
+   cd Veilpaper/experiments/lockscreen
+   python3 -m unittest discover -s tests -v
+   ```
+
+   The tests verify source structure only; they do **not** prove a successful
+   lock/unlock cycle.
 2. Copy a PNG to the designated private per-user data path:
 
    ```bash
