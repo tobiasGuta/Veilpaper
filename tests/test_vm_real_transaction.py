@@ -40,8 +40,14 @@ class VMRealTransactionTests(unittest.TestCase):
         self.mock_lab = patch.object(txn, 'LAB', self.lab)
         self.mock_theme.start()
         self.mock_lab.start()
+        # The production directory requires root. Only these temporary
+        # fixtures bypass that ownership gate; live invocation cannot.
+        self.fixture_lab = patch.object(
+            txn, '_lab', side_effect=lambda: self.lab.mkdir(mode=0o700, exist_ok=True))
+        self.fixture_lab.start()
         self.addCleanup(self.mock_theme.stop)
         self.addCleanup(self.mock_lab.stop)
+        self.addCleanup(self.fixture_lab.stop)
 
     def _mock_resources(self):
         def review(path, **kwargs):
