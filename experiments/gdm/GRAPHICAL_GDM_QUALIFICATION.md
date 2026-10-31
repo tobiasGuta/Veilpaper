@@ -74,3 +74,13 @@ Likely setup factor, not yet proven as root cause: this experiment installed GNO
 A [second isolated run](https://github.com/tobiasGuta/Veilpaper/actions/runs/41252582148) now requires a full clean VM reboot **after graphical packages are installed and before any theme write**, with a different kernel boot ID, before testing GDM. If the greeter still fails to start, the harness collects guest `loginctl` seat status, DRM devices, GDM user processes, system and GDM journals, and one **diagnostic-no-greeter.png** capture through QMP if possible. That diagnostic image must **never** be called a passing greeter screenshot.
 
 Graphical PASS remains withheld until the actual guest's GDM greeter is visible, the four original stage screenshots are captured and independently reviewed, and the original theme is restored and RPM-verified.
+
+## Second graphical attempt: greeter identity false negative (October 31, 2026)
+
+[Run 41252582148](https://github.com/tobiasGuta/Veilpaper/actions/runs/41252582148) **FAILED** at the initial real-greeter identity check, but the additional diagnostic logs conclusively showed that the Fedora GNOME greeter **was running** after reboot. Its `loginctl` session `c1` had class `greeter`, belonged to `seat0`, and used the dynamically allocated `gdm-greeter` Linux account (UID 60578). The process list also contained `/usr/bin/gnome-shell --mode=gdm` under that same account.
+
+The harness had incorrectly checked `pgrep -u gdm`, so the running graphical greeter was rejected. The diagnostic-only QMP screenshot was successfully captured (1280 × 800) and uploaded; **no normal before/after wallpaper screenshots or guest GDM theme write occurred** in that failed run.
+
+The corrected [guest greeter identity helper](../../scripts/verify_qemu_gdm_greeter.py) instead verifies a `gdm.service`, a `loginctl` session with `Class=greeter` and `Seat=seat0`, a GDM-specific account (`gdm` or `gdm-greeter`), and an actual `gnome-shell --mode=gdm` process with the identical numeric user ID. Ordinary GNOME desktop sessions are rejected. Regression tests cover both Fedora account conventions and false-positive conditions.
+
+[The new QEMU graphical rerun](https://github.com/tobiasGuta/Veilpaper/actions/runs/41254281217) was started from that corrected code. **No graphical wallpaper acceptance can be claimed until four stage screenshots are captured and visually inspected, with clean final RPM restoration.**
