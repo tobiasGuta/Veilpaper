@@ -180,11 +180,11 @@ class VeilpaperWindow(Adw.ApplicationWindow):
         self._login_actions = login_actions
         login.append(login_actions)
 
-        self._login_choose = Gtk.Button(label='Choose login image…')
+        self._login_choose = Gtk.Button(label='Choose image…')
         self._login_choose.connect('clicked', self._choose_login)
         login_actions.append(self._login_choose)
 
-        self._login_prepare = Gtk.Button(label='Prepare candidate')
+        self._login_prepare = Gtk.Button(label='Build candidate')
         self._login_prepare.set_sensitive(False)
         self._login_prepare.set_tooltip_text(
             'Build and verify locally; never install or change the GDM theme')
