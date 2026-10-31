@@ -15,7 +15,7 @@ if ! grep -qE '^Fedora release 44' /etc/fedora-release; then
   exit 1
 fi
 dnf install -y --setopt=install_weak_deps=False \
-  python3 python3-gobject gtk4 libadwaita xorg-x11-server-Xvfb xorg-x11-xauth
+  python3 python3-gobject gtk4 libadwaita cairo-gobject xorg-x11-server-Xvfb xorg-x11-xauth
 command -v xvfb-run
 
 # Test actual GTK/libadwaita widget creation on an isolated virtual display.
