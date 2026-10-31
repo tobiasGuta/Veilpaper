@@ -46,8 +46,8 @@ See [guest CI harness](../../scripts/fedora44_vm_real_gdm_check.sh).
 
 **Remaining blockers even if this test passes:** No graphical GDM login or
 visible wallpaper is exercised in the headless Fedora Cloud Base guest.
-The transaction has not yet qualified real SIGKILL interruptions at all write
-points, sudden power loss, or independent console/TTY rescue. It is also not a
+The four planned real-resource SIGKILL checkpoints have now passed in isolated
+Fedora VMs, but sudden power loss and independent console/TTY rescue remain unqualified. It is also not a
 production privilege-separation design. The graphical Veilpaper application
 does not use this guest-only tool; login Apply stays disabled.
 
@@ -78,11 +78,11 @@ Fedora reboot with a changed kernel boot ID, then a separate, authorized
 restoration command. Final acceptance also requires a clean
 `rpm -V gnome-shell` and exact original theme hash.
 
-**This scenario is limited to SIGKILL immediately after the real install
-swap.** Install-intent, restore-intent and restore-swap process kills against
-the live guest resource remain separate, unqualified scenarios, as do sudden
-power loss and visible GDM graphical sign-in. A successful run does not permit
-the GUI to install GDM themes or authorize ordinary host writes.
+**This specific scenario is limited to SIGKILL immediately after the real install
+swap.** The other three checkpoints were independently qualified later.
+Sudden power loss and visible GDM graphical sign-in remain unqualified. A
+successful VM run does not permit the GUI to install GDM themes or authorize
+ordinary host writes.
 
 [Check the first post-swap crash VM trial](https://github.com/tobiasGuta/Veilpaper/actions/runs/41247600260).
 
@@ -92,7 +92,7 @@ The [three-checkpoint QEMU workflow](../../.github/workflows/fedora44-vm-remaini
 
 Each real-resource trial checks privileged-process SIGKILL (exit 137), exact journal phase, verified immutable original backup, original-owner/mode/SELinux/mtime, the expected resource SHA-256 **before and after a full VM reboot**, and a fresh-process restoration followed by `rpm -V gnome-shell`. Tests are limited to disposable guests with both root-owned markers and explicit guest-only confirmation; the normal GUI still cannot invoke the injector.
 
-**Status:** The new matrix is an experimental trial, not an accepted qualification until all three GitHub jobs complete successfully. A failure in one job does not negate already verified earlier milestones. Physical disk power-loss recovery is not established by SIGKILL.
+**PASS — All three real-resource SIGKILL checkpoints qualified** in [GitHub run 41248524267](https://github.com/tobiasGuta/Veilpaper/actions/runs/41248524267). Each independent Fedora VM verified SIGKILL, persisted journal and backup, reboot, fresh-process restoration, and clean `rpm -V gnome-shell`. Together with the earlier [install-swap PASS](https://github.com/tobiasGuta/Veilpaper/actions/runs/41247600260), all four planned process-crash checkpoints have VM evidence. Physical disk power-loss recovery is not established by SIGKILL.
 
 ## Graphical GDM qualification — next acceptance gate
 
