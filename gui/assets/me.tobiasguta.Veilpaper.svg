@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Veilpaper original application artwork: two distinct screens under one veil. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" role="img" aria-label="Veilpaper application icon">
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6C55CA"/>
+      <stop offset="1" stop-color="#32216F"/>
+    </linearGradient>
+    <linearGradient id="landscape" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#9485E8"/>
+      <stop offset="1" stop-color="#47348C"/>
+    </linearGradient>
+    <linearGradient id="veil" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#F4DBFF" stop-opacity=".96"/>
+      <stop offset="1" stop-color="#B5A5F5" stop-opacity=".97"/>
+    </linearGradient>
+  </defs>
+  <rect x="4" y="5" width="120" height="120" rx="30" fill="#21194E"/>
+  <rect x="4" y="3" width="120" height="120" rx="30" fill="url(#tile)"/>
+  <!-- Primary landscape display -->
+  <rect x="19" y="24" width="90" height="68" rx="13" fill="#161238" opacity=".65"/>
+  <rect x="22" y="27" width="84" height="62" rx="10" fill="url(#landscape)"/>
+  <circle cx="80" cy="44" r="10" fill="#F4D889"/>
+  <path d="M22 74 43 50l16 18 13-15 34 31v5H22Z" fill="#2C265E"/>
+  <path d="M22 84 45 61l13 13 14-10 22 25H22Z" fill="#171C48" opacity=".86"/>
+  <!-- A second offset display gives the mark its two-screen identity -->
+  <rect x="40" y="70" width="66" height="37" rx="10" fill="#18123E" opacity=".52"/>
+  <rect x="38" y="67" width="66" height="37" rx="10" fill="url(#veil)"/>
+  <path d="M40 88 57 76l12 10 12-8 21 15v8H40Z" fill="#6654BD"/>
+  <path d="M40 98 59 88l11 7 14-7 18 10v4H40Z" fill="#453A98"/>
+  <!-- Compact lock indicator, distinct from wallpaper image -->
+  <path d="M89 75v-4a5 5 0 0 0-10 0v4" fill="none" stroke="#32216F" stroke-linecap="round" stroke-width="3.5"/>
+  <rect x="76" y="74" width="16" height="13" rx="3.5" fill="#32216F"/>
+  <circle cx="84" cy="80" r="1.8" fill="#EADFFF"/>
+</svg>
