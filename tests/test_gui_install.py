@@ -57,7 +57,7 @@ class GUIInstallTests(unittest.TestCase):
         desktop = self.desktop.read_text()
         lines = ['Icon=preferences-desktop-wallpaper' if line.startswith('Icon=')
                  else line for line in desktop.splitlines()]
-        self.desktop.write_text('\\n'.join(lines) + '\\n')
+        self.desktop.write_text('\n'.join(lines) + '\n')
         manifest = self.app / installer.MANIFEST
         record = json.loads(manifest.read_text())
         record['format'] = 1
