@@ -64,6 +64,23 @@ main cards stretched to the full maximized window width. The subsequent
 experimental refinement uses **GTK ContentFit.CONTAIN** for whole-image
 previews and a centered **Adw.Clamp** for readable, responsive layouts.
 
+### Adaptive two-panel interface (experimental)
+
+After the user's first GUI walkthrough, the lock picker, apply operation,
+screen lock, and persistence across reopening were confirmed working on a
+Fedora 44 GNOME Wayland desktop. The next UI version retains those operations
+while replacing the vertically stacked utility layout with:
+
+- **Two image-first cards side by side** when the window is wide enough.
+- A native **libadwaita breakpoint** that stacks them on smaller windows,
+  and stacks lock-screen action buttons on particularly narrow windows.
+- Larger **uncropped, aspect-framed** wallpaper previews and clearer status
+  badges (lock extension active / GDM viewing only).
+- A simplified heading and a single safety note.
+
+The GUI still cannot modify the login theme; editing GDM remains intentionally
+blocked. The UI changes require refreshing the installed private GUI bundle.
+
 The development GUI installer is intentionally **no-overwrite**. To test new
 GUI revisions after `git pull --ff-only`, close the GUI, uninstall the prior
 GUI bundle, then install the updated copy as your normal user:
