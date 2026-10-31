@@ -14,6 +14,7 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parent
 GDM_BACKEND = ROOT / 'experiments/gdm/fedora_wallpaper_manager_v02.py'
+GDM_PREFLIGHT = ROOT / 'experiments/gdm/preflight.py'
 EXTENSION_SOURCE = ROOT / 'experiments/lockscreen/lockscreen'
 UUID = 'lockscreen@veilpaper.tobiasguta'
 MAX_IMAGE_BYTES = 25 * 1024 * 1024
@@ -185,6 +186,16 @@ def gdm():
     return module
 
 
+def preflight_login():
+    """Inspect installed GDM theme read-only; never treat this as pristine proof."""
+    spec = importlib.util.spec_from_file_location('veilpaper_gdm_preflight', GDM_PREFLIGHT)
+    if spec is None or spec.loader is None:
+        fail(f'GDM preflight module missing: {GDM_PREFLIGHT}')
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.show(module.inspect())
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     subs = parser.add_subparsers(dest='command', required=True)
@@ -206,6 +217,7 @@ def main(argv=None):
     login_apply.add_argument('candidate', type=Path)
     login_sub.add_parser('restore', help='Restore original GDM resource with sudo')
     login_sub.add_parser('status', help='Inspect GDM theme and recovery state')
+    login_sub.add_parser('preflight', help='Inspect GDM theme portability without changes')
     args = parser.parse_args(argv)
     try:
         if args.command == 'lock':
@@ -218,6 +230,8 @@ def main(argv=None):
             else:
                 show_lock_status()
         elif args.command == 'login':
+            if args.action == 'preflight':
+                return preflight_login()
             backend = gdm()
             if args.action == 'build':
                 backend.build(args.image.expanduser(), args.output.expanduser())
