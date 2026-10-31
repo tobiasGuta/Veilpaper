@@ -67,6 +67,19 @@ class LockCLITests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, 'not with sudo'):
                 vp.set_lock(Path('any.png'))
 
+    def test_portable_build_dispatch_avoids_legacy_writer(self):
+        with patch.object(vp, 'portable_build_login', return_value=None) as portable, \
+             patch.object(vp, 'gdm', side_effect=AssertionError('must not load writer')):
+            self.assertEqual(vp.main(['login', 'portable-build',
+                '/tmp/wallpaper.png', '--output', '/tmp/candidate.gresource']), 0)
+            portable.assert_called_once_with(
+                Path('/tmp/wallpaper.png'), Path('/tmp/candidate.gresource'))
+
+    def test_portable_build_refuses_sudo(self):
+        with patch.object(vp.os, 'geteuid', return_value=0):
+            with self.assertRaisesRegex(RuntimeError, 'not with sudo'):
+                vp.portable_build_login(Path('/tmp/x.png'), Path('/tmp/x.gresource'))
+
     def test_login_rpm_baseline_dispatch_does_not_load_writer(self):
         with patch.object(vp, 'baseline_login', return_value=0) as scan, \
              patch.object(vp, 'gdm', side_effect=AssertionError('must not load writer')):
