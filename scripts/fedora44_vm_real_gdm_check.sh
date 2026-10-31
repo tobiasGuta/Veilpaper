@@ -164,7 +164,7 @@ after="$(sha256sum "$theme" | cut -d' ' -f1)"
 sudo rpm -V gnome-shell
 echo "PASS: real Fedora 44 VM admission and independent fixture crash recoveries"
 echo "=== Creating second root-only marker for real GDM replacement in guest ==="
-printf 'VEILPAPER-REAL-GDM-WRITES-IN-DISPOSABLE-VM-ONLY\\n' | \
+printf 'VEILPAPER-REAL-GDM-WRITES-IN-DISPOSABLE-VM-ONLY\n' | \
   sudo tee /etc/veilpaper-disposable-vm-GDM-write-test >/dev/null
 sudo chown root:root /etc/veilpaper-disposable-vm-GDM-write-test
 sudo chmod 0600 /etc/veilpaper-disposable-vm-GDM-write-test
