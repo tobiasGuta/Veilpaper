@@ -61,7 +61,7 @@ for preview in (window._lock_picture, window._login_picture):
     assert preview.get_alternative_text(), 'Preview needs accessible text'
 assert not window._login_prepare.get_sensitive(), 'Login candidate build requires explicit image selection'
 assert 'candidate' in window._login_progress.get_text().lower(), 'Build-only guidance required'
-assert window._login_choose.get_label() == 'Choose login image…', 'Login image picker missing'
+assert window._login_choose.get_label() == 'Choose image…', 'Login image picker missing'
 window._pending_login = Path('/tmp/veilpaper-staged-login-image.png')
 window._login_prepare.set_sensitive(True)
 window._show_current_login(None)
