@@ -22,7 +22,8 @@ except (ImportError, ValueError) as error:
     )
 
 # Allow running from repository checkout and from the user-installed bundle.
-from backend import lock_image, login_preview, state, set_lock, restore_lock
+from backend import (lock_image, login_preview, state, set_lock, restore_lock,
+                     prepare_login_candidate)
 
 APP_ID = 'me.tobiasguta.Veilpaper'
 APP_VERSION = '0.1.0-dev'
@@ -69,6 +70,8 @@ class VeilpaperWindow(Adw.ApplicationWindow):
         self.set_default_size(1120, 740)
         self.set_size_request(430, 520)
         self._pending: Path | None = None
+        self._pending_login: Path | None = None
+        self._login_candidate = None
         self._install_styles()
 
         overlay = Adw.ToastOverlay()
@@ -159,7 +162,7 @@ class VeilpaperWindow(Adw.ApplicationWindow):
 
         login, _login_badge = self._card(
             self._cards, 'Login screen', 'system-users-symbolic',
-            'The background displayed before you sign in.', 'VIEW ONLY',
+            'The background displayed before you sign in.', 'BUILD ONLY',
             muted=True)
         self._login_picture, self._login_icon = self._preview(
             login, 'Complete preview of the GDM login wallpaper')
@@ -168,25 +171,44 @@ class VeilpaperWindow(Adw.ApplicationWindow):
         self._login_detail = _label('', 'dim-label', wrap=True)
         login.append(self._login_detail)
 
-        disabled_button = Gtk.Button(label='Editing available in a future version')
-        disabled_button.set_sensitive(False)
-        disabled_button.set_tooltip_text(
-            'GDM editing requires a separately qualified, safely authorized installer')
-        disabled_button.set_halign(Gtk.Align.START)
-        login.append(disabled_button)
+        self._login_progress = _label(
+            'Choose an image to preview and prepare a verified GDM candidate. '
+            'Installing it is not available yet.',
+            'dim-label', wrap=True)
+        login.append(self._login_progress)
+        login_actions = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        self._login_actions = login_actions
+        login.append(login_actions)
+
+        self._login_choose = Gtk.Button(label='Choose login image…')
+        self._login_choose.connect('clicked', self._choose_login)
+        login_actions.append(self._login_choose)
+
+        self._login_prepare = Gtk.Button(label='Prepare candidate')
+        self._login_prepare.set_sensitive(False)
+        self._login_prepare.set_tooltip_text(
+            'Build and verify locally; never install or change the GDM theme')
+        self._login_prepare.connect('clicked', self._prepare_login)
+        login_actions.append(self._login_prepare)
+
+        self._login_reset = Gtk.Button(label='Show current')
+        self._login_reset.add_css_class('flat')
+        self._login_reset.connect('clicked', self._show_current_login)
+        login_actions.append(self._login_reset)
 
         footer = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         footer.add_css_class('veilpaper-footer')
         viewport.append(footer)
         footer.append(Gtk.Image.new_from_icon_name('security-high-symbolic'))
         footer.append(_label(
-            'Your desktop wallpaper stays unchanged. Login screen editing is read-only.',
+            'Your desktop stays unchanged. Login candidates are build-only and never installed.',
             'dim-label', wrap=True))
 
         # Additional responsive rule for the lock action row when the window
         # is particularly narrow, avoiding hidden controls or horizontal scroll.
         compact = Adw.Breakpoint.new(Adw.BreakpointCondition.parse('max-width: 580sp'))
         compact.add_setter(self._lock_actions, 'orientation', Gtk.Orientation.VERTICAL)
+        compact.add_setter(self._login_actions, 'orientation', Gtk.Orientation.VERTICAL)
         self.add_breakpoint(compact)
 
         self._refresh()
@@ -340,6 +362,8 @@ class VeilpaperWindow(Adw.ApplicationWindow):
         self._login_status.set_text(current.login_label)
         self._login_detail.set_text(current.login_detail)
         self._update_action_styles()
+        if self._pending_login is not None:
+            return  # Retain selected login preview while refreshing system status.
         data = login_preview()
         if data:
             try:
@@ -354,6 +378,70 @@ class VeilpaperWindow(Adw.ApplicationWindow):
                 self._toast(f'Login preview could not be loaded: {error}')
         else:
             self._login_icon.set_visible_child_name('placeholder')
+
+    def _choose_login(self, _button):
+        dialog = Gtk.FileDialog(title='Choose a login wallpaper to prepare')
+        image_filter = Gtk.FileFilter()
+        image_filter.set_name('Images')
+        image_filter.add_mime_type('image/*')
+        filters = Gio.ListStore.new(Gtk.FileFilter)
+        filters.append(image_filter)
+        dialog.set_filters(filters)
+        dialog.set_default_filter(image_filter)
+
+        def finished(chooser, result):
+            try:
+                selected = chooser.open_finish(result)
+            except GLib.Error:
+                return
+            if selected is None or not selected.get_path():
+                self._toast('Choose a local image.')
+                return
+            path = Path(selected.get_path())
+            try:
+                paintable = _image_paintable(path)
+            except (OSError, ValueError, GLib.Error) as error:
+                self._toast(f'Unsupported login image: {error}')
+                return
+            self._pending_login = path
+            self._login_candidate = None
+            self._login_picture.set_paintable(paintable)
+            self._login_icon.set_visible_child_name('image')
+            self._login_prepare.set_sensitive(True)
+            self._login_status.set_text('Preview only — not installed')
+            self._login_progress.set_text(
+                f'{path.name} selected. Prepare a candidate before installation can '
+                'be considered in a future release.')
+        dialog.open(self, None, finished)
+
+    def _prepare_login(self, _button):
+        if self._pending_login is None:
+            return
+        self._login_prepare.set_sensitive(False)
+        self._login_progress.set_text('Building and checking candidate locally…')
+        try:
+            result = prepare_login_candidate(self._pending_login)
+        except (RuntimeError, OSError, ValueError, GLib.Error) as error:
+            self._login_prepare.set_sensitive(True)
+            self._login_progress.set_text('Candidate preparation failed; installed login remains unchanged.')
+            self._toast(f'GDM candidate could not be prepared: {error}')
+            return
+        self._login_candidate = result
+        self._login_progress.set_text(
+            f'Verified candidate: {result.path}\n'
+            f'SHA-256: {result.digest}\n'
+            'Not installed. Existing login wallpaper and recovery backup are untouched.')
+        self._login_status.set_text('Verified candidate ready — not installed')
+        self._toast('Login candidate verified. No system theme was changed.')
+
+    def _show_current_login(self, _button):
+        self._pending_login = None
+        self._login_candidate = None
+        self._login_prepare.set_sensitive(False)
+        self._login_progress.set_text(
+            'Choose an image to preview and prepare a verified GDM candidate. '
+            'Installing it is not available yet.')
+        self._refresh()
 
     def _choose_lock(self, _button):
         dialog = Gtk.FileDialog(title='Choose a lock-screen wallpaper')
