@@ -61,6 +61,25 @@ echo "=== Review pristine first-time installation candidate (read-only) ==="
 runuser -u veiltest -- python3 /src/veilpaper.py login install-check \
   /tmp/veilpaper-test/candidate.gresource
 
+echo "=== Exercise GUI build-only candidate backend against real stock RPM ==="
+runuser -u veiltest -- env XDG_CACHE_HOME=/tmp/veilpaper-test/cache PYTHONDONTWRITEBYTECODE=1 python3 - <<'PY'
+import hashlib
+from pathlib import Path
+import sys
+sys.path.insert(0, '/src/gui')
+from backend import prepare_login_candidate
+source = Path('/tmp/veilpaper-test/login.png')
+before = source.read_bytes()
+candidate = prepare_login_candidate(source)
+assert candidate.path.is_file()
+assert candidate.path.stat().st_mode & 0o777 == 0o600
+assert candidate.digest == hashlib.sha256(candidate.path.read_bytes()).hexdigest()
+assert 'login-candidates' in candidate.path.parts
+assert candidate.resource.endswith('.png')
+assert source.read_bytes() == before
+print('PASS: GUI prepared an independently checked, private GDM candidate; original image unchanged.')
+PY
+
 echo "=== Verify journal recovery using disposable paths only ==="
 runuser -u veiltest -- python3 /src/veilpaper.py login transaction-check \
   "$target" /tmp/veilpaper-test/candidate.gresource
