@@ -30,13 +30,15 @@ python3 veilpaper.py status
 python3 veilpaper.py lock status
 ```
 
-Per-user wallpaper management:
+Per-user wallpaper management (PNG/JPEG are copied as-is; other GNOME-readable image formats are converted to real PNG using the system GdkPixbuf library and PyGObject, when available):
 
 ```bash
 python3 veilpaper.py lock set /absolute/path/to/lock.png
 python3 veilpaper.py lock restore
 python3 veilpaper.py lock install
 ```
+
+The `lock set` operation leaves any existing lock image intact if conversion fails. Conversion requires `python3-gobject` on Fedora; it is the standard GNOME Python binding, not a separate wallpaper manager. For troubleshooting, inspect the true image type with `file --mime-type IMAGE`.
 
 The `lock install` subcommand copies the packaged GNOME extension into the user extension directory, but **does not enable it or restart GNOME**. If an existing extension differs, it refuses to overwrite it.
 
