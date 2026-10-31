@@ -8,12 +8,10 @@ from __future__ import annotations
 
 from contextlib import redirect_stdout
 from dataclasses import dataclass
-from contextlib import ExitStack
 import importlib.util
 from io import StringIO
 import os
 from pathlib import Path
-import hashlib
 import shutil
 import subprocess
 import tempfile
