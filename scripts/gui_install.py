@@ -21,13 +21,15 @@ import tempfile
 PROJECT = Path(__file__).resolve().parents[1]
 APP = 'veilpaper-gui-dev'
 DESKTOP = 'me.tobiasguta.Veilpaper.desktop'
-FILES = (
+LEGACY_FILES = (
     'gui/backend.py',
     'gui/veilpaper_gui.py',
     'veilpaper.py',
     'experiments/gdm/fedora_wallpaper_manager_v02.py',
     'experiments/gdm/rpm_baseline.py',
 )
+ICON_BUNDLE_PATH = 'gui/assets/me.tobiasguta.Veilpaper.svg'
+FILES = LEGACY_FILES + (ICON_BUNDLE_PATH,)
 MANIFEST = 'gui-install-manifest.json'
 
 
@@ -87,6 +89,10 @@ def _desktop(launcher):
     if any(ord(c) < 32 for c in path):
         raise GUIInstallError('Unsupported control character in launcher path.')
     path = path.replace('\\', '\\\\').replace('"', '\\"').replace('%', '%%')
+    icon = str(launcher.parent.parent / 'lib' / APP / ICON_BUNDLE_PATH)
+    if any(ord(c) < 32 for c in icon):
+        raise GUIInstallError('Unsupported control character in icon path.')
+    icon = icon.replace('\\', '\\\\')
     return (
         '[Desktop Entry]\n'
         'Type=Application\n'
@@ -94,7 +100,7 @@ def _desktop(launcher):
         'Name=Veilpaper\n'
         'Comment=Independent GNOME lock-screen and login wallpaper manager\n'
         f'Exec="{path}"\n'
-        'Icon=preferences-desktop-wallpaper\n'
+        f'Icon={icon}\n'
         'Terminal=false\n'
         'StartupNotify=true\n'
         'Categories=Settings;Utility;\n'
@@ -113,7 +119,7 @@ def _expected():
 
 def _manifest(files, launcher, desktop):
     return (json.dumps({
-        'format': 1,
+        'format': 2,
         'files': {name: _hash(src) for name, src in files.items()},
         'launcher': hashlib.sha256(launcher).hexdigest(),
         'desktop': hashlib.sha256(desktop).hexdigest(),
@@ -132,9 +138,14 @@ def check(prefix):
         return 'INCONSISTENT', ['GUI install manifest is missing or unsafe.']
     try:
         data = json.loads(path.read_text())
-        if (set(data) != {'format', 'files', 'launcher', 'desktop'} or
-                data['format'] != 1 or set(data['files']) != set(FILES)):
+        if set(data) != {'format', 'files', 'launcher', 'desktop'}:
             raise ValueError('Invalid GUI install schema')
+        # v1 remains readable/removable so existing users can upgrade via
+        # uninstall + install without overwriting their working GUI bundle.
+        expected = (LEGACY_FILES if data['format'] == 1 else
+                    FILES if data['format'] == 2 else ())
+        if not expected or set(data['files']) != set(expected):
+            raise ValueError('Unknown or incompatible GUI bundle manifest')
         for label in ('launcher', 'desktop'):
             if not isinstance(data[label], str) or len(data[label]) != 64:
                 raise ValueError('Invalid GUI install digest')
@@ -147,14 +158,14 @@ def check(prefix):
     for name, path in (('launcher', launcher), ('desktop', desktop)):
         if not _is_regular(path) or _hash(path) != data[name]:
             errors.append(f'{name} missing or modified')
-    known = set(FILES) | {MANIFEST}
+    known = set(data['files']) | {MANIFEST}
     for path in appdir.rglob('*'):
         relative = path.relative_to(appdir).as_posix()
         if path.is_symlink():
             errors.append(f'Unsafe symlink in GUI bundle: {relative}')
         elif path.is_file() and relative not in known:
             errors.append(f'Unknown file in GUI bundle: {relative}')
-        elif path.is_dir() and relative not in {'gui', 'experiments', 'experiments/gdm'}:
+        elif path.is_dir() and relative not in {'gui', 'gui/assets', 'experiments', 'experiments/gdm'}:
             errors.append(f'Unknown directory in GUI bundle: {relative}')
     return ('INCONSISTENT' if errors else 'INSTALLED'), errors
 
@@ -234,11 +245,15 @@ def uninstall(prefix):
     appdir, launcher, desktop = _paths(prefix)
     desktop.unlink()
     launcher.unlink()
-    for name in FILES:
+    # The just-verified manifest identifies the exact files for this version.
+    installed = json.loads((appdir / MANIFEST).read_text())['files']
+    for name in installed:
         (appdir / name).unlink()
     (appdir / MANIFEST).unlink()
-    for sub in ('experiments/gdm', 'experiments', 'gui'):
-        (appdir / sub).rmdir()
+    for sub in ('experiments/gdm', 'experiments', 'gui/assets', 'gui'):
+        directory = appdir / sub
+        if directory.is_dir():
+            directory.rmdir()
     appdir.rmdir()
     print('Veilpaper GUI launcher and its bundle removed.')
     print('Existing CLI, login/lock wallpapers and GNOME extension were not removed.')
