@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""DISPOSABLE-FEDORA-VM-ONLY: SIGKILL real theme install after durable swap.
+"""Disposable Fedora 44 VM ONLY: SIGKILL real GDM transaction checkpoints.
 
-Not a supported installer or recovery tool. The normal transaction API has no
-failure-injection flags. The injector requires both root-owned VM markers and
-exact confirmation from vm_real_transaction.
+NOT a general installer. Normal production transaction code has NO crash
+switch. This separate injector requires the VM's two root-owned marker files,
+Fedora 44 VM gate, and exact explicit VM-only confirmation on every call.
 
-Only one checkpoint: after candidate real resource rename and parent-dir fsync,
-before final installed journal publication. Caller must independently verify
-SIGKILL, install-prepared journal, and candidate bytes before restoring in VM.
+Kill *after durable publication* of a specified journal phase or actual
+resource swap. The caller must independently verify SIGKILL, hashes, metadata,
+journal and backup; reboot and restore inside the disposable guest.
 """
 from __future__ import annotations
 
@@ -20,6 +20,9 @@ import sys
 
 HERE = Path(__file__).resolve().parent
 
+CHECKPOINTS = ('install-intent', 'install-swap',
+               'restore-intent', 'restore-swap')
+
 
 def _load_txn():
     spec = importlib.util.spec_from_file_location(
@@ -31,32 +34,60 @@ def _load_txn():
     return module
 
 
+def inject_checkpoint(txn, checkpoint, candidate=None):
+    """Revalidate VM authorization, then die only at the selected checkpoint."""
+    if checkpoint not in CHECKPOINTS:
+        raise RuntimeError('Unknown or unsupported crash checkpoint')
+    is_install = checkpoint.startswith('install-')
+    if is_install and candidate is None:
+        raise RuntimeError('Installation crash requires a candidate')
+    if not is_install and candidate is not None:
+        raise RuntimeError('Restoration crash forbids candidate')
+
+    txn.gate()  # Gate first, even before monkeypatching an internal function.
+    if checkpoint.endswith('-intent'):
+        original_record = txn._write_state
+        phase = 'install-prepared' if is_install else 'restore-prepared'
+
+        def persist_then_kill(record):
+            original_record(record)  # includes atomic journal fsync
+            if record.get('phase') == phase:
+                os.kill(os.getpid(), signal.SIGKILL)
+
+        txn._write_state = persist_then_kill
+    else:
+        original_atomic = txn._atomic
+
+        def swap_then_kill(path, data, **kwargs):
+            original_atomic(path, data, **kwargs)  # fsyncs parent directory
+            if Path(path) == txn.THEME:
+                os.kill(os.getpid(), signal.SIGKILL)
+
+        txn._atomic = swap_then_kill
+
+    if is_install:
+        txn.install(Path(candidate))
+    else:
+        txn.restore()
+    raise RuntimeError(f'Expected SIGKILL at {checkpoint} did not occur')
+
+
 def inject_install_swap(txn, candidate):
-    """Revalidate VM-only authorization then crash AFTER actual durable swap."""
-    txn.gate()
-    original_atomic = txn._atomic
-
-    def crash_after_durable_swap(path, data, **kwargs):
-        original_atomic(path, data, **kwargs)
-        if Path(path) == txn.THEME:
-            os.kill(os.getpid(), signal.SIGKILL)
-
-    txn._atomic = crash_after_durable_swap
-    txn.install(Path(candidate))
-    raise RuntimeError('Expected SIGKILL after actual theme swap did not occur')
+    """Backward-compatible narrow name for previous post-install swap proof."""
+    return inject_checkpoint(txn, 'install-swap', candidate)
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('checkpoint', choices=('install-swap',))
-    parser.add_argument('--candidate', type=Path, required=True)
+    parser.add_argument('checkpoint', choices=CHECKPOINTS)
+    parser.add_argument('--candidate', type=Path)
     parser.add_argument('--confirm', required=True)
     args = parser.parse_args(argv)
     try:
         txn = _load_txn()
         if args.confirm != txn.PHRASE:
             raise RuntimeError('Exact disposable-VM-only write phrase missing')
-        inject_install_swap(txn, args.candidate)
+        inject_checkpoint(txn, args.checkpoint, args.candidate)
     except (RuntimeError, OSError, ValueError) as exc:
         print(f'BLOCKED: {exc}', file=sys.stderr)
         return 1
