@@ -5,6 +5,7 @@ import importlib.util
 from io import StringIO
 from pathlib import Path
 import os
+import stat
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -34,9 +35,16 @@ class VMGateTests(unittest.TestCase):
         return patch.object(vm, '_run', side_effect=command), \
                patch.object(vm.os, 'geteuid', return_value=root_uid)
 
+    def _root_marker(self):
+        # GitHub runners use an unprivileged account; emulate root metadata
+        # without weakening production VM ownership checks.
+        metadata = SimpleNamespace(
+            st_mode=stat.S_IFREG | 0o600, st_uid=0, st_nlink=1)
+        return patch.object(vm.Path, 'lstat', return_value=metadata)
+
     def test_full_vm_with_valid_marker_passes_identity_gate(self):
         a, b = self._gate()
-        with a, b, patch.object(vm, 'MARKER', self.marker):
+        with a, b, self._root_marker():
             vm.guard_vm(marker=self.marker, release=self.release)
 
     def test_rootless_vm_rejected(self):
@@ -60,7 +68,7 @@ class VMGateTests(unittest.TestCase):
     def test_bad_marker_rejected(self):
         self.marker.write_text('an arbitrary marker')
         a, b = self._gate()
-        with a, b:
+        with a, b, self._root_marker():
             with self.assertRaisesRegex(vm.QualificationBlocked, 'invalid content'):
                 vm.guard_vm(marker=self.marker, release=self.release)
 
