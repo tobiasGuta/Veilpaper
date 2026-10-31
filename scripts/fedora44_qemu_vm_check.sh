@@ -101,6 +101,7 @@ tar -C "$GITHUB_WORKSPACE" -cf - \
   experiments/gdm/portable_build.py \
   experiments/gdm/install_review.py \
   experiments/gdm/fixture_transaction.py \
+  experiments/gdm/process_crash_probe.py \
   experiments/gdm/vm_gate.py \
   | ssh "${ssh_opts[@]}" "$guest" \
     'mkdir -p "$HOME/veilpaper" && tar -xf - -C "$HOME/veilpaper"'
@@ -152,12 +153,14 @@ sudo chmod 0600 /etc/veilpaper-disposable-vm-qualification
 sudo python3 experiments/gdm/vm_gate.py \
   --candidate "$HOME/vm-candidate.gresource" \
   --confirm 'DISPOSABLE FEDORA 44 VM'
+echo "=== SIGKILL child during real fixture journal/swap, recover in fresh process ==="
+python3 experiments/gdm/process_crash_probe.py   "$theme" "$HOME/vm-candidate.gresource"
 after="$(sha256sum "$theme" | cut -d' ' -f1)"
 [[ "$before" == "$after" ]]
 [[ ! -e /var/backups/fedora-gdm-wallpaper/original.gresource ]]
 [[ ! -e /var/backups/fedora-gdm-wallpaper/manager-state.json ]]
 sudo rpm -V gnome-shell
-echo "PASS: real Fedora 44 full-VM read-only admission and five fixture recovery scenarios"
+echo "PASS: real Fedora 44 VM admission, five fixture recoveries and four SIGKILL crash recoveries"
 echo "PASS: no live GDM theme, backup, or state modification"
 GUEST
 echo "PASS: ephemeral full VM qualification completed; VM overlay and SSH key discarded"
