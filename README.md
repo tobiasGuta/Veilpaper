@@ -15,7 +15,8 @@ Veilpaper is an experimental GNOME wallpaper manager that controls **GDM login**
 | Unified entry point | **CLI status PASS** on Fedora 44; lock image conversion completed; **6/6 CLI unit tests PASS** |
 | Lock image handling | **Visual PASS** after real WebP-to-PNG conversion; resulting file identified as `image/png` |
 | GDM portability preflight | Read-only structural inspection implemented; not a generic apply or restore mechanism |
-| RPM baseline comparison | Read-only active/backup SHA-256 comparison against installed package metadata; no writes |
+| RPM baseline comparison | Read-only active/backup SHA-256 comparison against installed package metadata; **18/18 tests PASS** on Fedora 44 |
+| Portable GDM candidate builder | Experimental unprivileged build from an RPM-matching baseline; not an installer, not yet tested on Fedora |
 | Install/restore across machines | **Not ready** |
 
 The login tool requires a specific verified original GDM checksum. It will refuse unknown host originals, and that is intentional. **Do not apply the login theme tool on another system.**
@@ -47,6 +48,8 @@ The `lock install` subcommand copies the packaged GNOME extension into the user 
 
 The new `login preflight` inspects compiled resources and CSS, reports any existing Veilpaper state, and **never modifies files**.
 
+The new `login portable-build` command uses the installed RPM metadata to select a stock GDM theme or RPM-matching independent backup. It compiles and validates a **new candidate file only**, never changes `/usr/share` or `/var/backups`, and refuses to overwrite an existing output. **Do not use `sudo` with this command.** It currently accepts genuine PNG/JPEG files only. This does not implement portable installation or recovery; do not use the old `login apply` to install a portable candidate on another machine.
+
 The additional `login baseline` command checks whether the active theme or its independent backup matches the digest and size recorded by the installed RPM database. It is **not** an installer or a complete authenticity check: locally altered RPM metadata or an untrusted package may still be misleading. A mismatch must not trigger automatic rewriting or an automatic baseline adoption. A structurally valid resource is **not** proof that the file is an unmodified package original. The eventual installer needs a verified stock baseline and independent recovery design for each target system.
 
 Two-phase GDM login customization, **only on the previously verified host**:
@@ -54,6 +57,8 @@ Two-phase GDM login customization, **only on the previously verified host**:
 ```bash
 python3 veilpaper.py login preflight  # read-only, recognizes existing customizations
 python3 veilpaper.py login baseline   # read-only, compare active and backup to RPM DB
+python3 veilpaper.py login portable-build /absolute/path/to/login.png \
+  --output "$HOME/Downloads/veilpaper-new-candidate.gresource"
 python3 veilpaper.py login status
 python3 veilpaper.py login build /absolute/path/to/login.png --output /tmp/veilpaper-candidate.gresource
 # Carefully review and back up first. Applying writes a system file:
@@ -70,6 +75,7 @@ The CLI deliberately does **not** automatically log users out, restart GDM, or i
 - `experiments/gdm/fedora_wallpaper_manager_v02.py`: validated, host-specific GDM backend
 - `experiments/gdm/preflight.py`: read-only GNOME 50 theme structure/ownership-independent inspection
 - `experiments/gdm/rpm_baseline.py`: read-only installed RPM digest/size comparison
+- `experiments/gdm/portable_build.py`: RPM-qualified GDM candidate builder, no system writes
 - `experiments/lockscreen/lockscreen/`: GNOME 50 extension JavaScript and metadata
 - `tests/test_cli.py`: isolated CLI regression tests
 - `experiments/lockscreen/tests/`: extension static tests
