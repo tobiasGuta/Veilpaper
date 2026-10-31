@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Disposable Fedora 44 real-GDM post-swap SIGKILL and reboot recovery.
+# Disposable Fedora 44 remaining real-GDM SIGKILL journal/recovery checkpoints.
 # CI ephemeral QEMU full guest ONLY; SIGKILL after actual resource swap.
 # Never run this on a developer laptop.
 set -Eeuo pipefail
@@ -238,7 +238,7 @@ printf '%s\n' "$expected_sha" > "$HOME/crash-expected-sha"
 echo "PASS: actual GDM theme matches $checkpoint journal + metadata"
 GUEST
 
-echo "=== Reboot Fedora VM while real installer journal remains install-prepared ==="
+echo "=== Reboot with real GDM interrupted journal ==="
 # Reboot closes SSH and can exit 255; the actual proof is a changed kernel boot ID.
 ssh "${ssh_opts[@]}" "$guest" 'sudo systemctl reboot' || true
 new_boot=0
@@ -262,11 +262,13 @@ ssh "${ssh_opts[@]}" "$guest" "bash -se -- '$CRASH_CHECKPOINT'" <<'RESTORE_GUEST
 set -Eeuo pipefail
 cd "$HOME/veilpaper"
 theme=/usr/share/gnome-shell/gnome-shell-theme.gresource
-[[ "$(sha256sum "$theme" | cut -d' ' -f1)" == "$(cat "$HOME/candidate.sha")" ]]
+checkpoint="$1"
+case "$checkpoint" in install-intent|restore-intent|restore-swap) ;; *) exit 1 ;; esac
+[[ "$(sha256sum "$theme" | cut -d' ' -f1)" == "$(cat "$HOME/crash-expected-sha")" ]]
 [[ "$(stat -c '%u:%g:%a:%C:%y' "$theme")" == "$(cat "$HOME/stock-before.meta")" ]]
 sudo python3 experiments/gdm/vm_real_transaction.py status \
   --confirm 'I AUTHORIZE DISPOSABLE FEDORA 44 VM GDM WRITES ONLY' \
-  | grep -Fx 'install-prepared: active=candidate'
+  | grep -Fx "$(cat "$HOME/crash-expected-phase"): active=$(cat "$HOME/crash-expected-active")"
 sudo python3 experiments/gdm/vm_real_transaction.py restore \
   --confirm 'I AUTHORIZE DISPOSABLE FEDORA 44 VM GDM WRITES ONLY'
 [[ "$(sha256sum "$theme" | cut -d' ' -f1)" == "$(cat "$HOME/stock-before.sha")" ]]
@@ -274,8 +276,8 @@ sudo python3 experiments/gdm/vm_real_transaction.py restore \
 sudo rpm -V gnome-shell
 sudo python3 experiments/gdm/vm_real_transaction.py status \
   --confirm 'I AUTHORIZE DISPOSABLE FEDORA 44 VM GDM WRITES ONLY'
-echo "PASS: GDM original restored byte-for-byte across SIGKILL, reboot and fresh-process recovery"
+echo "PASS: $checkpoint GDM restored byte-for-byte across SIGKILL, reboot and fresh recovery"
 echo "PASS: original owner, mode and SELinux context preserved; RPM verification clean"
 RESTORE_GUEST
 
-echo "PASS: real-theme post-swap SIGKILL + reboot + restore complete in disposable VM"
+echo "PASS: $CRASH_CHECKPOINT real GDM SIGKILL + reboot + recovery complete in disposable VM"
