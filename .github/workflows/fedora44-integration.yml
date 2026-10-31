@@ -7,6 +7,10 @@ on:
       - experimental/gnome50-lockscreen
     paths:
       - .github/workflows/fedora44-integration.yml
+      - scripts/fedora44_container_check.sh
+      - gui/backend.py
+      - experiments/gdm/portable_build.py
+      - experiments/gdm/install_review.py
 
 permissions:
   contents: read
