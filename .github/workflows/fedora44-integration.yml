@@ -1,0 +1,25 @@
+name: Fedora 44 GDM integration (isolated)
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - experimental/gnome50-lockscreen
+    paths:
+      - .github/workflows/fedora44-integration.yml
+
+permissions:
+  contents: read
+
+jobs:
+  fedora44-gdm-first-install:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check pristine GNOME Shell RPM in isolated Fedora 44
+        run: |
+          docker run --rm \
+            --mount type=bind,src="$PWD",dst=/src,readonly \
+            --network=bridge \
+            fedora:44 /bin/bash /src/scripts/fedora44_container_check.sh
