@@ -48,9 +48,14 @@ class GUIInstallTests(unittest.TestCase):
         self.assertEqual(ET.parse(icon).getroot().tag,
                          '{http://www.w3.org/2000/svg}svg')
         self.assertTrue((self.app / 'veilpaper.py').exists())
+        self.assertTrue((self.app / 'experiments/gdm/portable_build.py').exists())
+        self.assertTrue((self.app / 'experiments/gdm/install_review.py').exists())
+        self.assertEqual(json.loads((self.app / installer.MANIFEST).read_text())['format'], 3)
 
     def test_existing_v1_bundle_can_still_be_uninstalled_for_upgrade(self):
         self._install()
+        for name in ('experiments/gdm/portable_build.py', 'experiments/gdm/install_review.py'):
+            (self.app / name).unlink()
         icon = self.app / installer.ICON_BUNDLE_PATH
         icon.unlink()
         icon.parent.rmdir()
@@ -63,6 +68,21 @@ class GUIInstallTests(unittest.TestCase):
         record['format'] = 1
         del record['files'][installer.ICON_BUNDLE_PATH]
         record['desktop'] = hashlib.sha256(self.desktop.read_bytes()).hexdigest()
+        manifest.write_text(json.dumps(record))
+        self.assertEqual(installer.check(self.prefix), ('INSTALLED', []))
+        with contextlib.redirect_stdout(StringIO()):
+            installer.uninstall(self.prefix)
+        self.assertEqual(installer.check(self.prefix), ('NOT_INSTALLED', []))
+
+    def test_existing_v2_bundle_can_still_be_uninstalled_for_upgrade(self):
+        self._install()
+        for name in ('experiments/gdm/portable_build.py', 'experiments/gdm/install_review.py'):
+            (self.app / name).unlink()
+        manifest = self.app / installer.MANIFEST
+        record = json.loads(manifest.read_text())
+        record['format'] = 2
+        record['files'] = {key: value for key, value in record['files'].items()
+                           if key in installer.V2_FILES}
         manifest.write_text(json.dumps(record))
         self.assertEqual(installer.check(self.prefix), ('INSTALLED', []))
         with contextlib.redirect_stdout(StringIO()):
