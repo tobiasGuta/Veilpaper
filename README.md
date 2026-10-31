@@ -19,11 +19,41 @@ Veilpaper is an experimental GNOME wallpaper manager that controls **GDM login**
 | Portable GDM candidate builder | Experimental unprivileged build from an RPM-matching baseline; not an installer, not yet tested on Fedora |
 | GDM transaction simulation | Fixture-only journaled install/rollback and interruption tests; **not enabled against live GDM** |
 | First-time GDM install review | New read-only, fail-closed resource/RPM verification; no live installer or authorization |
+| One-command user launcher | Experimental `~/.local/bin/veilpaper` installer and verified uninstall, **no sudo or GDM writes** |
 | Install/restore across machines | **Not ready** |
 
 The login tool requires a specific verified original GDM checksum. It will refuse unknown host originals, and that is intentional. **Do not apply the login theme tool on another system.**
 
 The lock extension uses GNOME Shell private APIs. Full regression tests—including normal password unlock, extension disable, upgrade effects, and SELinux behavior—remain outstanding.
+
+## Install the single Veilpaper command (experimental, per-user)
+
+Once the development branch's tests pass, you can install the **CLI launcher only**:
+
+```bash
+cd Veilpaper
+python3 scripts/user_install.py install
+~/.local/bin/veilpaper status
+```
+
+If `~/.local/bin` is already on your `PATH`, use `veilpaper status` instead.
+The installer copies an **allowlist of source files** into
+`~/.local/lib/veilpaper-dev` and creates `~/.local/bin/veilpaper`.
+It refuses to overwrite an existing install or command and requires a regular
+user, **not `sudo`**. It does **not** install the GNOME Shell extension, change
+wallpaper images, touch GDM, change package-manager state, or restart sessions.
+
+Check or remove **only** the CLI launcher and installed source:
+
+```bash
+python3 scripts/user_install.py status
+python3 scripts/user_install.py uninstall
+```
+
+Uninstallation refuses files altered since installation and leaves existing
+GDM customizations, backups, lock-screen images and the GNOME extension intact.
+The command currently requires the repository to install or uninstall; packaging
+as a proper distro package remains future work.
 
 ## Experimental unified commands
 
@@ -82,6 +112,7 @@ The CLI deliberately does **not** automatically log users out, restart GDM, or i
 ## Project layout
 
 - `veilpaper.py`: unified development CLI (one user command)
+- `scripts/user_install.py`: install/verify/remove an unprivileged `veilpaper` command with an allowlisted source bundle
 - `experiments/gdm/fedora_wallpaper_manager_v02.py`: validated, host-specific GDM backend
 - `experiments/gdm/preflight.py`: read-only GNOME 50 theme structure/ownership-independent inspection
 - `experiments/gdm/rpm_baseline.py`: read-only installed RPM digest/size comparison
