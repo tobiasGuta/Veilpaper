@@ -474,8 +474,8 @@ class VeilpaperWindow(Adw.ApplicationWindow):
         self._candidate_digest_label.set_text(result.digest)
         self._login_details.set_sensitive(True)
         self._login_progress.set_text(
-            'Candidate built and verified locally. Your installed login wallpaper '
-            'and original recovery backup have not changed.')
+            'Candidate verified — not installed. Your current login wallpaper '
+            'and original recovery backup remain unchanged.')
         self._login_status.set_text('Verified candidate ready — not installed')
         self._toast('Login candidate verified. No system theme was changed.')
 
