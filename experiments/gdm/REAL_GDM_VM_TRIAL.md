@@ -58,4 +58,30 @@ successful post-reboot and RPM verification.
 
 The first real-VM install/reboot/restore run, [41244248252](https://github.com/tobiasGuta/Veilpaper/actions/runs/41244248252), **failed** at the final `rpm -V gnome-shell` check. Candidate installation, reboot persistence, and byte-for-byte resource restoration succeeded. RPM reported `.......T.` for the theme resource: its file modification timestamp changed during atomic replacement, even though the SHA-256 and owner/mode/SELinux context matched.
 
-The correction stores the packaged original's `st_mtime_ns` in the durable version-2 transaction record, stamps the staging inode before atomic publication for both install and restore, and verifies the restored timestamp. The full-VM script now checks nanosecond timestamp equality before/after the reboot. **Do not mark this corrected real-VM qualification PASS until a new workflow run completes successfully.**
+The correction stores the packaged original's `st_mtime_ns` in the durable version-2 transaction record, stamps the staging inode before atomic publication for both install and restore, and verifies the restored timestamp. The full-VM script now checks nanosecond timestamp equality before/after the reboot. The corrected [real-GDM install/reboot/restore run passed](https://github.com/tobiasGuta/Veilpaper/actions/runs/41245722339), including clean RPM verification and the original modification time.
+
+## Separate real-resource SIGKILL qualification (post-swap)
+
+The normal transaction API still has **no failure-injection switch**.
+The independent, dual-marker-gated [VM-only crash injector](vm_real_crash_injector.py)
+intercepts only publication of the actual theme in a disposable Fedora 44 VM.
+After the underlying atomic rename and directory fsync succeed, the injector
+sends SIGKILL to its own process, before the journal transitions from
+install-prepared to installed.
+
+The [independent QEMU workflow](../../.github/workflows/fedora44-vm-real-gdm-crash.yml)
+executes [the crash harness](../../scripts/fedora44_vm_real_gdm_crash_check.sh)
+in a fresh Fedora guest, never on the host or laptop. It requires child exit
+status 137, install-prepared journal plus original backup, candidate checksum
+and resource verification, preserved ownership/mode/SELinux/timestamp, a full
+Fedora reboot with a changed kernel boot ID, then a separate, authorized
+restoration command. Final acceptance also requires a clean
+`rpm -V gnome-shell` and exact original theme hash.
+
+**This scenario is limited to SIGKILL immediately after the real install
+swap.** Install-intent, restore-intent and restore-swap process kills against
+the live guest resource remain separate, unqualified scenarios, as do sudden
+power loss and visible GDM graphical sign-in. A successful run does not permit
+the GUI to install GDM themes or authorize ordinary host writes.
+
+[Check the first post-swap crash VM trial](https://github.com/tobiasGuta/Veilpaper/actions/runs/41247600260).
