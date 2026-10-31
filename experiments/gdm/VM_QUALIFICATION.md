@@ -29,6 +29,16 @@ Do not run the CI harness on your laptop: it explicitly checks for an
 ephemeral GitHub Actions environment. Its guests are removed after the job.
 Any test still in progress or unsuccessful is **not** a full-VM qualification.
 
+## Full-machine admission milestone and crash probe
+
+The [successful Fedora 44 VM admission](https://github.com/tobiasGuta/Veilpaper/actions/runs/41239547612) exercised the genuine Fedora guest, verified the stock RPM and GDM candidate, and ran the five disposable recovery cases. That **closed the read-only VM gate only**; live GDM theme replacement and reboot qualification remain blocked.
+
+The next engineering slice adds [process_crash_probe.py](process_crash_probe.py). Unlike exception-based simulations, this runs each operation in a separately forked subprocess, invokes `SIGKILL` **inside the transaction just after fsync of the journal or active fixture swap**, and verifies a fresh transaction handler can restore original bytes. Four interruption points are covered: install intent, install swap, restore intent, and restore swap. Source files are read-only; all writes are under ephemeral fixture directories. Running as root is rejected.
+
+The [QEMU guest workflow](../../.github/workflows/fedora44-qemu-vm.yml) includes this process-kill probe after admission checks. A passing unit suite is insufficient to claim the new guest integration passed; consult the workflow conclusion for that specific commit.
+
+**Nothing in this phase changes /usr/share/gnome-shell or provides an Apply button.** Crash-process fixture success is not a physical power-loss test, file-labeling validation, graphical GDM boot test, or independently reviewed privileged transaction.
+
 ## Create a disposable environment
 
 Provision a **new Fedora 44 full virtual machine** using QEMU/KVM/libvirt, with a working console and unmodified GNOME Shell package. Take an **external hypervisor disk snapshot** first. Never expose host system or home paths as writable guest mounts.
