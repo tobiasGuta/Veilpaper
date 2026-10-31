@@ -18,6 +18,7 @@ Veilpaper is an experimental GNOME wallpaper manager that controls **GDM login**
 | RPM baseline comparison | Read-only active/backup SHA-256 comparison against installed package metadata; **18/18 tests PASS** on Fedora 44 |
 | Portable GDM candidate builder | Experimental unprivileged build from an RPM-matching baseline; not an installer, not yet tested on Fedora |
 | GDM transaction simulation | Fixture-only journaled install/rollback and interruption tests; **not enabled against live GDM** |
+| First-time GDM install review | New read-only, fail-closed resource/RPM verification; no live installer or authorization |
 | Install/restore across machines | **Not ready** |
 
 The login tool requires a specific verified original GDM checksum. It will refuse unknown host originals, and that is intentional. **Do not apply the login theme tool on another system.**
@@ -49,6 +50,8 @@ The `lock install` subcommand copies the packaged GNOME extension into the user 
 
 The new `login preflight` inspects compiled resources and CSS, reports any existing Veilpaper state, and **never modifies files**.
 
+The new `login install-check` command is a **read-only admission review** for *first-time* Fedora installs. It verifies an RPM-matching live theme, a nonconflicting backup/state, and an exact two-CSS/one-image candidate resource diff. It rejects systems that are already customized (including the machine where Veilpaper first succeeded), instead of overwriting their existing working login theme. A structural PASS is **not** authorization to install. Run without `sudo`. This is the next validation gate, not the final installer.
+
 The new `login transaction-check` command simulates installation, restoration, and interrupted operations in **fresh temporary test directories**. It reads, but never writes, the two supplied source resource files. It cannot install to a real GDM theme. All five simulated scenarios must return PASS before we consider a live installer design; this alone is **not sufficient** for general availability. Do not use `sudo` with it.
 
 The new `login portable-build` command uses the installed RPM metadata to select a stock GDM theme or RPM-matching independent backup. It compiles and validates a **new candidate file only**, never changes `/usr/share` or `/var/backups`, and refuses to overwrite an existing output. **Do not use `sudo` with this command.** It currently accepts genuine PNG/JPEG files only. This does not implement portable installation or recovery; do not use the old `login apply` to install a portable candidate on another machine.
@@ -65,6 +68,7 @@ python3 veilpaper.py login portable-build /absolute/path/to/login.png \
 python3 veilpaper.py login transaction-check \
   /absolute/path/to/original.gresource \
   /absolute/path/to/veilpaper-new-candidate.gresource
+python3 veilpaper.py login install-check /absolute/path/to/veilpaper-new-candidate.gresource
 python3 veilpaper.py login status
 python3 veilpaper.py login build /absolute/path/to/login.png --output /tmp/veilpaper-candidate.gresource
 # Carefully review and back up first. Applying writes a system file:
@@ -83,6 +87,7 @@ The CLI deliberately does **not** automatically log users out, restart GDM, or i
 - `experiments/gdm/rpm_baseline.py`: read-only installed RPM digest/size comparison
 - `experiments/gdm/portable_build.py`: RPM-qualified GDM candidate builder, no system writes
 - `experiments/gdm/fixture_transaction.py`: private disposable GDM install/rollback transaction simulator
+- `experiments/gdm/install_review.py`: strict read-only first-time candidate review
 - `experiments/lockscreen/lockscreen/`: GNOME 50 extension JavaScript and metadata
 - `tests/test_cli.py`: isolated CLI regression tests
 - `experiments/lockscreen/tests/`: extension static tests
