@@ -25,6 +25,8 @@ except (ImportError, ValueError) as error:
 from backend import lock_image, login_preview, state, set_lock, restore_lock
 
 APP_ID = 'me.tobiasguta.Veilpaper'
+APP_VERSION = '0.1.0-dev'
+ICON_FILE = Path(__file__).resolve().parent / 'assets' / f'{APP_ID}.svg'
 MAX_SOURCE_BYTES = 25 * 1024 * 1024
 MAX_PIXELS = 32_000_000
 
@@ -64,7 +66,7 @@ class VeilpaperWindow(Adw.ApplicationWindow):
 
     def __init__(self, application):
         super().__init__(application=application, title='Veilpaper')
-        self.set_default_size(1160, 760)
+        self.set_default_size(1120, 740)
         self.set_size_request(430, 520)
         self._pending: Path | None = None
         self._install_styles()
@@ -81,6 +83,10 @@ class VeilpaperWindow(Adw.ApplicationWindow):
         refresh.set_tooltip_text('Refresh screen status')
         refresh.connect('clicked', lambda _: self._refresh())
         header.pack_end(refresh)
+        about_button = Gtk.Button(icon_name='help-about-symbolic')
+        about_button.set_tooltip_text('About Veilpaper')
+        about_button.connect('clicked', self._show_about)
+        header.pack_end(about_button)
 
         scroll = Gtk.ScrolledWindow()
         scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
@@ -119,7 +125,7 @@ class VeilpaperWindow(Adw.ApplicationWindow):
         self.add_breakpoint(narrow)
 
         lock, lock_content = self._card(
-            self._cards, 'Lock screen', 'screen-locked-symbolic',
+            self._cards, 'Lock screen', 'system-lock-screen-symbolic',
             'Your personal screen whenever you lock your device.', 'Ready')
         self._lock_badge = lock_content
         self._lock_picture, self._lock_icon = self._preview(
@@ -135,22 +141,24 @@ class VeilpaperWindow(Adw.ApplicationWindow):
         lock.append(actions)
 
         choose = Gtk.Button(label='Choose image…')
+        self._choose = choose
+        choose.add_css_class('suggested-action')
         choose.set_tooltip_text('Select a local image without applying it yet')
         choose.connect('clicked', self._choose_lock)
         actions.append(choose)
 
         self._apply = Gtk.Button(label='Apply wallpaper')
-        self._apply.add_css_class('suggested-action')
         self._apply.set_sensitive(False)
         self._apply.connect('clicked', self._apply_lock)
         actions.append(self._apply)
 
         restore = Gtk.Button(label='Restore default')
+        restore.add_css_class('flat')
         restore.connect('clicked', self._restore_lock)
         actions.append(restore)
 
         login, _login_badge = self._card(
-            self._cards, 'Login screen', 'system-lock-screen-symbolic',
+            self._cards, 'Login screen', 'system-users-symbolic',
             'The background displayed before you sign in.', 'VIEW ONLY',
             muted=True)
         self._login_picture, self._login_icon = self._preview(
@@ -182,6 +190,29 @@ class VeilpaperWindow(Adw.ApplicationWindow):
         self.add_breakpoint(compact)
 
         self._refresh()
+
+    def _show_about(self, _button):
+        about = Adw.AboutWindow(
+            transient_for=self,
+            modal=True,
+            application_name='Veilpaper',
+            application_icon=APP_ID,
+            version=APP_VERSION,
+            developer_name='Veilpaper contributors',
+            website='https://github.com/tobiasGuta/Veilpaper',
+            issue_url='https://github.com/tobiasGuta/Veilpaper/issues',
+        )
+        about.present()
+        self._about_window = about
+
+    def _update_action_styles(self):
+        # A single prominent action: choose first, apply only after selection.
+        if self._pending is None:
+            self._choose.add_css_class('suggested-action')
+            self._apply.remove_css_class('suggested-action')
+        else:
+            self._choose.remove_css_class('suggested-action')
+            self._apply.add_css_class('suggested-action')
 
     def _install_styles(self):
         # Theme-aware styling: use GNOME's colors instead of fixed light/dark
@@ -308,6 +339,7 @@ class VeilpaperWindow(Adw.ApplicationWindow):
             self._lock_status.set_text(f'Not applied yet: {self._pending.name}')
         self._login_status.set_text(current.login_label)
         self._login_detail.set_text(current.login_detail)
+        self._update_action_styles()
         data = login_preview()
         if data:
             try:
@@ -351,6 +383,7 @@ class VeilpaperWindow(Adw.ApplicationWindow):
             self._lock_picture.set_paintable(paintable)
             self._lock_icon.set_visible_child_name('image')
             self._apply.set_sensitive(True)
+            self._update_action_styles()
             self._lock_status.set_text(f'Not applied yet: {path.name}')
         dialog.open(self, None, finished)
 
@@ -387,6 +420,9 @@ class VeilpaperApp(Adw.Application):
         self._window = None
 
     def do_activate(self):
+        if ICON_FILE.is_file():
+            theme = Gtk.IconTheme.get_for_display(Gdk.Display.get_default())
+            theme.add_search_path(str(ICON_FILE.parent))
         if self._window is None:
             self._window = VeilpaperWindow(self)
         self._window.present()
