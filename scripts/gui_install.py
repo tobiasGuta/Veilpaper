@@ -29,7 +29,11 @@ LEGACY_FILES = (
     'experiments/gdm/rpm_baseline.py',
 )
 ICON_BUNDLE_PATH = 'gui/assets/me.tobiasguta.Veilpaper.svg'
-FILES = LEGACY_FILES + (ICON_BUNDLE_PATH,)
+V2_FILES = LEGACY_FILES + (ICON_BUNDLE_PATH,)
+FILES = V2_FILES + (
+    'experiments/gdm/portable_build.py',
+    'experiments/gdm/install_review.py',
+)
 MANIFEST = 'gui-install-manifest.json'
 
 
@@ -119,7 +123,7 @@ def _expected():
 
 def _manifest(files, launcher, desktop):
     return (json.dumps({
-        'format': 2,
+        'format': 3,
         'files': {name: _hash(src) for name, src in files.items()},
         'launcher': hashlib.sha256(launcher).hexdigest(),
         'desktop': hashlib.sha256(desktop).hexdigest(),
@@ -143,7 +147,8 @@ def check(prefix):
         # v1 remains readable/removable so existing users can upgrade via
         # uninstall + install without overwriting their working GUI bundle.
         expected = (LEGACY_FILES if data['format'] == 1 else
-                    FILES if data['format'] == 2 else ())
+                    V2_FILES if data['format'] == 2 else
+                    FILES if data['format'] == 3 else ())
         if not expected or set(data['files']) != set(expected):
             raise ValueError('Unknown or incompatible GUI bundle manifest')
         for label in ('launcher', 'desktop'):
