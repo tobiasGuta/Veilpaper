@@ -98,7 +98,7 @@ qemu-system-x86_64 -machine "accel=$accel" -cpu "$cpu" -smp 4 -m 6144 \
   -drive file="$work/seed.iso",format=raw,media=cdrom,if=virtio \
   -netdev user,id=net0,hostfwd=tcp:127.0.0.1:22357-:22 \
   -device virtio-net-pci,netdev=net0 \
-  -device virtio-vga \
+  -vga none -device virtio-vga \
   -display none -qmp "unix:$work/qmp.sock,server=on,wait=off" \
   -serial "file:$work/serial.log" -monitor none \
   -daemonize -pidfile "$work/qemu.pid"
