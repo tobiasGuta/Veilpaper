@@ -286,5 +286,86 @@ class GUIBackendTests(unittest.TestCase):
             self.assertTrue(original_folder.is_symlink())
 
 
+    def _review_candidate(self):
+        return backend.LoginCandidate(
+            path=Path('/tmp/prepared-example/candidate.gresource'),
+            digest='a' * 64, baseline_digest='b' * 64,
+            resource='/org/gnome/shell/theme/fedora-login-wallpaper.png')
+
+    def _review_evidence(self, candidate, **override):
+        data = {
+            'schema_version': 1, 'read_only': True,
+            'authorization': 'NOT_GRANTED', 'privileged_helper_available': False,
+            'action': 'install', 'candidate': str(candidate.path),
+            'expected_sha256': candidate.digest,
+            'candidate_sha256': candidate.digest,
+            'existing_customization': 'NONE_DETECTED',
+            'verdict': 'STRUCTURAL_REVIEW_ONLY',
+            'issues': [],
+        }
+        data.update(override)
+        return data
+
+    def test_gui_readiness_clean_is_explicitly_not_install_approval(self):
+        candidate = self._review_candidate()
+        evidence = self._review_evidence(candidate)
+        inspector = SimpleNamespace(inspect_action=lambda *a, **k: evidence)
+        with patch.object(backend.os, 'geteuid', return_value=1000), \
+             patch.object(backend, '_load', return_value=inspector) as loader:
+            result = backend.review_login_candidate(candidate)
+        loader.assert_called_once_with(backend.APPROVAL, 'veilpaper_gui_approval_review')
+        self.assertEqual(result.verdict, 'STRUCTURAL_REVIEW_ONLY')
+        self.assertIn('no installation approved', result.headline)
+        self.assertIn('administrator authorization', result.explanation)
+        self.assertEqual(result.issues, ())
+
+    def test_gui_readiness_customized_theme_is_blocked_and_described(self):
+        candidate = self._review_candidate()
+        evidence = self._review_evidence(candidate,
+            verdict='BLOCKED', existing_customization='CUSTOM_OR_UNKNOWN',
+            issues=['Existing or unknown GDM customization must be preserved.'])
+        with patch.object(backend.os, 'geteuid', return_value=1000), \
+             patch.object(backend, '_load',
+                          return_value=SimpleNamespace(inspect_action=lambda *a, **k: evidence)):
+            result = backend.review_login_candidate(candidate)
+        self.assertEqual(result.verdict, 'BLOCKED')
+        self.assertIn('preserved', result.headline)
+        self.assertIn('preserved.', result.issues[0])
+
+    def test_gui_readiness_malformed_report_is_not_presented_as_clean(self):
+        candidate = self._review_candidate()
+        evidence = self._review_evidence(candidate, authorization='GRANTED')
+        with patch.object(backend.os, 'geteuid', return_value=1000), \
+             patch.object(backend, '_load',
+                          return_value=SimpleNamespace(inspect_action=lambda *a, **k: evidence)):
+            with self.assertRaisesRegex(RuntimeError, 'invalid evidence contract'):
+                backend.review_login_candidate(candidate)
+
+    def test_gui_readiness_contradictory_clean_evidence_rejected(self):
+        candidate = self._review_candidate()
+        evidence = self._review_evidence(candidate, existing_customization='CUSTOM_OR_UNKNOWN')
+        with patch.object(backend.os, 'geteuid', return_value=1000), \
+             patch.object(backend, '_load',
+                          return_value=SimpleNamespace(inspect_action=lambda *a, **k: evidence)):
+            with self.assertRaisesRegex(RuntimeError, 'Contradictory'):
+                backend.review_login_candidate(candidate)
+
+    def test_gui_readiness_refuses_root_and_invalid_candidate_before_import(self):
+        candidate = self._review_candidate()
+        with patch.object(backend.os, 'geteuid', return_value=0), \
+             patch.object(backend, '_load') as loader:
+            with self.assertRaisesRegex(RuntimeError, 'regular user'):
+                backend.review_login_candidate(candidate)
+            loader.assert_not_called()
+        candidate = backend.LoginCandidate(
+            path=candidate.path, digest='not-a-hash', baseline_digest='b'*64,
+            resource=candidate.resource)
+        with patch.object(backend.os, 'geteuid', return_value=1000), \
+             patch.object(backend, '_load') as loader:
+            with self.assertRaisesRegex(RuntimeError, 'exact SHA-256'):
+                backend.review_login_candidate(candidate)
+            loader.assert_not_called()
+
+
 if __name__ == '__main__':
     unittest.main()
