@@ -64,6 +64,14 @@ disposable-VM-only experiment**; it is NOT a general installer and the GUI
 still cannot install a login wallpaper. Even a successful guest test will
 not prove graphical GDM operation, emergency recovery, or power-loss safety.
 
+## Beta integration checkpoint — private candidate lifecycle
+
+The login workflow now supports **Choose image → Build candidate → View details → Discard candidate**, all as an ordinary unprivileged user. After a successful build, the existing **Show current** action becomes **Discard candidate**. This removes only that verified, user-owned, mode-0600 `candidate.gresource` from its own private mode-0700 `prepared-*` cache directory and then returns to the current installed login appearance. Choosing another image also attempts to discard the previous verified candidate before replacing the preview.
+
+The backend checks the exact candidate SHA-256, ownership, permissions, directory identity and contents. It uses directory-relative operations with no symlink following or recursive deletion. **Changed, symlinked, foreign, unexpected, or unsafe candidate files are preserved**, with an error shown instead of being silently deleted. The source wallpaper, active GDM theme and recovery backup are never touched by this action. Candidates deliberately remain in their private cache if the user closes the GUI without explicitly discarding them.
+
+This is an unprivileged beta lifecycle step, **not an installation approval or privileged helper**. The Login screen's system Apply and Restore remain unavailable until a separately reviewed backend, administrator authorization, graphical Workstation validation and safe recovery are qualified. See the [Workstation visual acceptance checklist](experiments/gdm/WORKSTATION_VISUAL_ACCEPTANCE.md).
+
 ## Build a login wallpaper candidate through the GUI (experimental)
 
 The GUI now offers a new, **build-only** workflow under the Login screen card:
