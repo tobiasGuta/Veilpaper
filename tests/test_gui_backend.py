@@ -187,5 +187,104 @@ class GUIBackendTests(unittest.TestCase):
             self.assertIsNone(snapshot.lock_image)
 
 
+    def _staged_candidate(self, cache_root, *, content=b'fake-resource'):
+        staging = cache_root / 'veilpaper' / 'login-candidates' / 'prepared-example123'
+        staging.mkdir(parents=True, mode=0o700)
+        staging.chmod(0o700)
+        path = staging / 'candidate.gresource'
+        path.write_bytes(content)
+        path.chmod(0o600)
+        return backend.LoginCandidate(
+            path=path,
+            digest=hashlib.sha256(content).hexdigest(),
+            baseline_digest='b' * 64,
+            resource='/org/gnome/shell/theme/fedora-login-wallpaper.png')
+
+    def test_discard_verified_candidate_only_removes_its_private_job(self):
+        with tempfile.TemporaryDirectory() as temp, patch.dict(os.environ, {'XDG_CACHE_HOME': temp}), \
+             patch.object(backend.os, 'geteuid', return_value=1000):
+            root = Path(temp)
+            candidate = self._staged_candidate(root)
+            unrelated = root / 'personal-wallpaper.png'
+            unrelated.write_bytes(b'untouched')
+            backend.discard_login_candidate(candidate)
+            self.assertFalse(candidate.path.parent.exists())
+            self.assertTrue((root / 'veilpaper/login-candidates').is_dir())
+            self.assertEqual(unrelated.read_bytes(), b'untouched')
+
+    def test_discard_changed_candidate_refuses_without_deleting(self):
+        with tempfile.TemporaryDirectory() as temp, patch.dict(os.environ, {'XDG_CACHE_HOME': temp}), \
+             patch.object(backend.os, 'geteuid', return_value=1000):
+            candidate = self._staged_candidate(Path(temp))
+            candidate.path.write_bytes(b'changed')
+            with self.assertRaisesRegex(RuntimeError, 'changed'):
+                backend.discard_login_candidate(candidate)
+            self.assertTrue(candidate.path.exists())
+
+    def test_discard_refuses_extra_unrecognized_file(self):
+        with tempfile.TemporaryDirectory() as temp, patch.dict(os.environ, {'XDG_CACHE_HOME': temp}), \
+             patch.object(backend.os, 'geteuid', return_value=1000):
+            candidate = self._staged_candidate(Path(temp))
+            extra = candidate.path.parent / 'notes'
+            extra.write_text('leave this alone')
+            with self.assertRaisesRegex(RuntimeError, 'Unexpected files'):
+                backend.discard_login_candidate(candidate)
+            self.assertTrue(candidate.path.exists())
+            self.assertTrue(extra.exists())
+
+    def test_discard_refuses_wrong_permissions(self):
+        with tempfile.TemporaryDirectory() as temp, patch.dict(os.environ, {'XDG_CACHE_HOME': temp}), \
+             patch.object(backend.os, 'geteuid', return_value=1000):
+            candidate = self._staged_candidate(Path(temp))
+            candidate.path.chmod(0o644)
+            with self.assertRaisesRegex(RuntimeError, 'private owned regular file'):
+                backend.discard_login_candidate(candidate)
+            self.assertTrue(candidate.path.exists())
+
+    def test_discard_refuses_root_and_foreign_paths(self):
+        with tempfile.TemporaryDirectory() as temp, patch.dict(os.environ, {'XDG_CACHE_HOME': temp}):
+            candidate = self._staged_candidate(Path(temp))
+            with patch.object(backend.os, 'geteuid', return_value=0):
+                with self.assertRaisesRegex(RuntimeError, 'as root'):
+                    backend.discard_login_candidate(candidate)
+            foreign = backend.LoginCandidate(
+                path=Path(temp) / 'personal-wallpaper.png',
+                digest=candidate.digest,
+                baseline_digest=candidate.baseline_digest,
+                resource=candidate.resource)
+            with patch.object(backend.os, 'geteuid', return_value=1000):
+                with self.assertRaisesRegex(RuntimeError, 'outside'):
+                    backend.discard_login_candidate(foreign)
+            self.assertTrue(candidate.path.exists())
+
+    def test_discard_refuses_symlinked_candidate_file(self):
+        with tempfile.TemporaryDirectory() as temp, patch.dict(os.environ, {'XDG_CACHE_HOME': temp}), \
+             patch.object(backend.os, 'geteuid', return_value=1000):
+            root = Path(temp)
+            candidate = self._staged_candidate(root)
+            elsewhere = root / 'do-not-delete.txt'
+            elsewhere.write_text('important')
+            candidate.path.unlink()
+            candidate.path.symlink_to(elsewhere)
+            with self.assertRaises(OSError):
+                backend.discard_login_candidate(candidate)
+            self.assertTrue(candidate.path.is_symlink())
+            self.assertEqual(elsewhere.read_text(), 'important')
+
+    def test_discard_refuses_symlinked_staging_directory(self):
+        with tempfile.TemporaryDirectory() as temp, patch.dict(os.environ, {'XDG_CACHE_HOME': temp}), \
+             patch.object(backend.os, 'geteuid', return_value=1000):
+            root = Path(temp)
+            candidate = self._staged_candidate(root)
+            original_folder = candidate.path.parent
+            other_folder = root / 'elsewhere'
+            original_folder.rename(other_folder)
+            original_folder.symlink_to(other_folder, target_is_directory=True)
+            with self.assertRaises(OSError):
+                backend.discard_login_candidate(candidate)
+            self.assertTrue((other_folder / 'candidate.gresource').exists())
+            self.assertTrue(original_folder.is_symlink())
+
+
 if __name__ == '__main__':
     unittest.main()
