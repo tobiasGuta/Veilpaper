@@ -1,15 +1,10 @@
 name: Fedora 44 graphical GDM screenshot evidence (disposable VM)
 
+# The unattended QEMU scanout currently returns black despite a verified
+# greeter session. Do not burn long CI retries or treat process proof as visual.
+# Resume only with an explicit manual experiment after display preflight.
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - experimental/gnome50-lockscreen
-    paths:
-      - .github/workflows/fedora44-vm-gdm-visual.yml
-      - scripts/fedora44_vm_graphical_gdm_check.sh
-      - scripts/qemu_capture_greeter.py
-      - scripts/verify_qemu_gdm_greeter.py
 
 permissions:
   contents: read
