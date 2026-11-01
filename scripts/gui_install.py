@@ -34,8 +34,11 @@ V3_FILES = V2_FILES + (
     'experiments/gdm/portable_build.py',
     'experiments/gdm/install_review.py',
 )
-FILES = V3_FILES + (
+V4_FILES = V3_FILES + (
     'experiments/gdm/approval_review.py',
+)
+FILES = V4_FILES + (
+    'gui/vm_install_bridge.py',
 )
 MANIFEST = 'gui-install-manifest.json'
 
@@ -126,7 +129,7 @@ def _expected():
 
 def _manifest(files, launcher, desktop):
     return (json.dumps({
-        'format': 4,
+        'format': 5,
         'files': {name: _hash(src) for name, src in files.items()},
         'launcher': hashlib.sha256(launcher).hexdigest(),
         'desktop': hashlib.sha256(desktop).hexdigest(),
@@ -152,7 +155,8 @@ def check(prefix):
         expected = (LEGACY_FILES if data['format'] == 1 else
                     V2_FILES if data['format'] == 2 else
                     V3_FILES if data['format'] == 3 else
-                    FILES if data['format'] == 4 else ())
+                    V4_FILES if data['format'] == 4 else
+                    FILES if data['format'] == 5 else ())
         if not expected or set(data['files']) != set(expected):
             raise ValueError('Unknown or incompatible GUI bundle manifest')
         for label in ('launcher', 'desktop'):
