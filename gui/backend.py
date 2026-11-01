@@ -7,6 +7,9 @@ No privilege escalation, GDM installation or live-login changes are offered.
 from __future__ import annotations
 
 from contextlib import redirect_stdout
+import hashlib
+import re
+import stat
 from dataclasses import dataclass
 import importlib.util
 from io import StringIO
@@ -207,3 +210,68 @@ def prepare_login_candidate(source: Path) -> LoginCandidate:
     except BaseException:
         shutil.rmtree(job)
         raise
+
+
+def discard_login_candidate(candidate: LoginCandidate) -> None:
+    """Discard only an intact user-owned Veilpaper candidate, never a GDM file.
+
+    No root, no recursive deletion, no symlink following. Only the expected
+    candidate.gresource in one private prepared-* directory may be removed.
+    If contents, ownership, permissions or SHA-256 have changed, preserve
+    everything and return an error for the operator to inspect.
+    """
+    if os.geteuid() == 0:
+        raise RuntimeError('Never manage Veilpaper candidates as root.')
+    if not isinstance(candidate, LoginCandidate):
+        raise RuntimeError('Invalid Veilpaper candidate record.')
+    if not re.fullmatch(r'[0-9a-f]{64}', candidate.digest):
+        raise RuntimeError('Invalid candidate SHA-256 in record.')
+
+    cache = _candidate_parent()
+    path = Path(candidate.path)
+    folder = path.parent
+    if (path.name != 'candidate.gresource' or folder.parent != cache
+            or not re.fullmatch(r'prepared-[A-Za-z0-9_-]+', folder.name)):
+        raise RuntimeError('Candidate is outside its dedicated private staging directory.')
+
+    dir_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+    cache_fd = os.open(cache, dir_flags)
+    try:
+        folder_fd = os.open(folder.name, dir_flags, dir_fd=cache_fd)
+        try:
+            info = os.fstat(folder_fd)
+            if (not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid()
+                    or stat.S_IMODE(info.st_mode) != 0o700):
+                raise RuntimeError('Candidate folder ownership or mode is unsafe.')
+            if os.listdir(folder_fd) != ['candidate.gresource']:
+                raise RuntimeError('Unexpected files in candidate folder; refusing deletion.')
+
+            flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK
+            file_fd = os.open('candidate.gresource', flags, dir_fd=folder_fd)
+            try:
+                file_info = os.fstat(file_fd)
+                if (not stat.S_ISREG(file_info.st_mode)
+                        or file_info.st_uid != os.getuid()
+                        or stat.S_IMODE(file_info.st_mode) != 0o600):
+                    raise RuntimeError('Candidate is not a private owned regular file.')
+                digest = hashlib.sha256()
+                while data := os.read(file_fd, 1024 * 1024):
+                    digest.update(data)
+                if digest.hexdigest() != candidate.digest:
+                    raise RuntimeError('Candidate content changed; refusing deletion.')
+                current = os.stat(
+                    'candidate.gresource', dir_fd=folder_fd,
+                    follow_symlinks=False)
+                if (current.st_dev, current.st_ino) != (file_info.st_dev, file_info.st_ino):
+                    raise RuntimeError('Candidate was replaced during inspection.')
+            finally:
+                os.close(file_fd)
+
+            # These operations are anchored to directory descriptors rather
+            # than following a candidate-supplied absolute path.
+            os.unlink('candidate.gresource', dir_fd=folder_fd)
+            os.rmdir(folder.name, dir_fd=cache_fd)
+        finally:
+            os.close(folder_fd)
+    finally:
+        os.close(cache_fd)
