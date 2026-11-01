@@ -9,6 +9,7 @@ on:
       - .github/workflows/fedora44-vm-gdm-visual.yml
       - scripts/fedora44_vm_graphical_gdm_check.sh
       - scripts/qemu_capture_greeter.py
+      - scripts/verify_qemu_gdm_greeter.py
 
 permissions:
   contents: read
@@ -26,7 +27,8 @@ jobs:
       - name: Validate graphical evidence harness syntax
         run: |
           bash -n scripts/fedora44_vm_graphical_gdm_check.sh
-          python3 -m py_compile scripts/qemu_capture_greeter.py
+          python3 -m py_compile scripts/qemu_capture_greeter.py scripts/verify_qemu_gdm_greeter.py
+          python3 -m unittest discover -s tests -p 'test_verify_qemu_gdm_greeter.py' -v
       - name: Start virtual GPU GNOME greeter and collect guest-only wallpaper captures
         run: bash scripts/fedora44_vm_graphical_gdm_check.sh
       - name: Preserve QEMU display screenshots for independent visual review
