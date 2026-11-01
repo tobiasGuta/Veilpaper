@@ -42,7 +42,7 @@ def _journal_valid(value):
         return False
     return (
         type(value['version']) is int and value['version'] == 2
-        and value['phase'] in _PHASES
+        and isinstance(value['phase'], str) and value['phase'] in _PHASES
         and _digest(value['base']) and _digest(value['candidate'])
         and value['base'] != value['candidate']
         and type(value['uid']) is int and value['uid'] == 0
