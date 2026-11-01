@@ -84,3 +84,13 @@ The harness had incorrectly checked `pgrep -u gdm`, so the running graphical gre
 The corrected [guest greeter identity helper](../../scripts/verify_qemu_gdm_greeter.py) instead verifies a `gdm.service`, a `loginctl` session with `Class=greeter` and `Seat=seat0`, a GDM-specific account (`gdm` or `gdm-greeter`), and an actual `gnome-shell --mode=gdm` process with the identical numeric user ID. Ordinary GNOME desktop sessions are rejected. Regression tests cover both Fedora account conventions and false-positive conditions.
 
 [The new QEMU graphical rerun](https://github.com/tobiasGuta/Veilpaper/actions/runs/41254281217) was started from that corrected code. **No graphical wallpaper acceptance can be claimed until four stage screenshots are captured and visually inspected, with clean final RPM restoration.**
+
+## Third graphical attempt: numbered greeter account after restart (October 31, 2026)
+
+[Run 41254281217](https://github.com/tobiasGuta/Veilpaper/actions/runs/41254281217) **FAILED** after the guest's actual GDM theme replacement. This time the initial real `seat0` greeter identity check passed (`gdm-greeter`), and the QMP **stock-greeter.png** was captured at 1280×800. The VM-installed candidate passed checksum and metadata verification, but after `systemctl restart gdm.service`, the harness rejected the newly created greeter session.
+
+Diagnostics identified a **different GNOME Shell GDM greeter identity**: `loginctl` session `c3`, `Class=greeter`, `Seat=seat0`, `Name=gdm-greeter-2`, UID `60579`, and a matching `/usr/bin/gnome-shell --mode=gdm` process. The helper's previous exact allow-list only accepted `gdm` and `gdm-greeter`. GDM also emitted early `Session never registered` lines, so visual usability cannot be inferred from the process list alone.
+
+The correction accepts only `gdm`, `gdm-greeter`, or strictly numbered `gdm-greeter-N` names (N positive integer without leading zero), still requiring an active GDM service, a real `seat0` `Class=greeter` session, and a matching same-UID GDM-mode GNOME Shell. Unit regressions include `gdm-greeter-2` and spoofed lookalikes. A new [independent graphical CI run](https://github.com/tobiasGuta/Veilpaper/actions/runs/41256181716) was triggered by adding the greeter helper to workflow path filters.
+
+**Status: graphical wallpaper acceptance still pending.** Raw screenshot evidence must be collected for all four stages and visually reviewed; restoring the RPM original and authenticating a user remain separate gates. Previous VM install/recovery PASS results are unchanged.
