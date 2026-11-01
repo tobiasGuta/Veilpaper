@@ -54,6 +54,32 @@ class CaptureGuardTests(unittest.TestCase):
             self.assertEqual(capture.main(['--socket',str(self.root/'qmp'),
                                            '--output',str(self.root/'image.png')]),1)
 
+    def test_blank_or_inactive_display_fails_visible_frame_check(self):
+        try:
+            from PIL import Image, ImageDraw
+        except ImportError:
+            self.skipTest('Pillow not installed for pixel validator tests')
+        image = Image.new('RGB', (1280, 800), 'black')
+        draw = ImageDraw.Draw(image)
+        draw.rectangle((515, 392, 745, 396), fill='white')
+        path = self.root / 'fake-inactive.png'
+        image.save(path)
+        with self.assertRaisesRegex(capture.CaptureBlocked, 'blank/inactive'):
+            capture._reject_blank_screen(path)
+
+    def test_visible_frame_requires_meaningful_illuminated_display_coverage(self):
+        try:
+            from PIL import Image, ImageDraw
+        except ImportError:
+            self.skipTest('Pillow not installed for pixel validator tests')
+        image = Image.new('RGB', (1280, 800), 'black')
+        draw = ImageDraw.Draw(image)
+        draw.rectangle((200, 200, 700, 700), fill=(70, 180, 210))
+        path = self.root / 'colored-display.png'
+        image.save(path)
+        self.assertGreater(capture._reject_blank_screen(path), 0.02)
+
+
 
 if __name__=='__main__':
     unittest.main()
