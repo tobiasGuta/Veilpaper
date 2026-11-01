@@ -101,6 +101,69 @@ class GuestInstallerTests(unittest.TestCase):
             with self.assertRaisesRegex(controller.GuestInstallBlocked, 'Unexpected restore'):
                 controller.execute('restore', expected_sha256=SHA, confirm=CONFIRM)
 
+    def test_controller_runs_real_install_and_restore_against_private_fixture(self):
+        """Call the existing transaction writer through this controller.
+
+        The only writable paths are in TemporaryDirectory. A mocked gate here
+        is a unit-test substitute, never a real VM authorization or release
+        acceptance result.
+        """
+        import tempfile
+        import os
+        import hashlib
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory(prefix='veilpaper-installer-integration-') as temp:
+            root = Path(temp)
+            theme = root / 'theme.gresource'
+            candidate = root / 'candidate.gresource'
+            lab = root / 'lab'
+            original = b'private original resource fixture'
+            replacement = b'private candidate resource fixture'
+            theme.write_bytes(original)
+            candidate.write_bytes(replacement)
+            theme.chmod(0o644)
+            mtime = 1700000000123456789
+            os.utime(theme, ns=(mtime, mtime))
+            digest = lambda data: hashlib.sha256(data).hexdigest()
+            txn = controller._engine()
+            meta = {'uid': 0, 'gid': 0, 'mode': 0o644,
+                    'mtime_ns': mtime, 'xattrs': {}}
+
+            def review(path, **kwargs):
+                self.assertEqual(path, candidate)
+                self.assertEqual(kwargs['theme'], theme)
+                return {
+                    'verdict': 'STRUCTURALLY_ELIGIBLE_FOR_OFFLINE_REVIEW',
+                    'active_sha256': digest(theme.read_bytes()),
+                    'candidate_sha256': digest(candidate.read_bytes()),
+                    'added_resource': '/org/gnome/shell/theme/fedora-login-wallpaper.png',
+                    'issues': [],
+                }
+            fake_reviewer = SimpleNamespace(review=review)
+            # No live system paths and no VM markers are created.
+            with patch.object(controller, '_engine', return_value=txn), \
+                 patch.object(txn, 'gate'), \
+                 patch.object(txn, 'THEME', theme), \
+                 patch.object(txn, 'LAB', lab), \
+                 patch.object(txn, '_lab', side_effect=lambda: lab.mkdir(mode=0o700, exist_ok=True)), \
+                 patch.object(txn, '_metadata', return_value=meta), \
+                 patch.object(txn, '_verify_meta'), \
+                 patch.object(txn.os, 'chown', return_value=None), \
+                 patch.object(txn, '_load', return_value=fake_reviewer):
+                self.assertEqual(controller.execute(
+                    'install', candidate=candidate,
+                    expected_sha256=digest(replacement),
+                    confirm=CONFIRM), 'VM_REAL_GDM_INSTALLED')
+                self.assertEqual(theme.read_bytes(), replacement)
+                self.assertEqual((lab / 'original.gresource').read_bytes(), original)
+                self.assertEqual(controller.execute(
+                    'restore', expected_sha256=digest(replacement),
+                    confirm=CONFIRM), 'VM_REAL_GDM_RESTORED')
+                self.assertEqual(theme.read_bytes(), original)
+                self.assertEqual((lab / 'original.gresource').read_bytes(), original)
+                self.assertTrue((lab / 'state.json').exists())
+                self.assertEqual(theme.stat().st_mtime_ns, mtime)
+
     def test_cli_bad_auth_returns_failure_without_importing_transaction(self):
         with patch.object(controller, '_engine', side_effect=AssertionError('should not load')), \
              contextlib.redirect_stderr(StringIO()) as err:
