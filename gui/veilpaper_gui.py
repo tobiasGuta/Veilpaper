@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import sys
+import threading
 
 try:
     import gi
@@ -25,6 +26,8 @@ except (ImportError, ValueError) as error:
 from backend import (lock_image, login_preview, state, set_lock, restore_lock,
                      prepare_login_candidate, discard_login_candidate,
                      review_login_candidate)
+from vm_install_bridge import (guest_install_availability,
+                               install_candidate_in_guest, VMInstallUnavailable)
 
 APP_ID = 'me.tobiasguta.Veilpaper'
 APP_VERSION = '0.1.0-dev'
@@ -74,6 +77,7 @@ class VeilpaperWindow(Adw.ApplicationWindow):
         self._pending_login: Path | None = None
         self._login_candidate = None
         self._login_review_result = None
+        self._vm_install_in_flight = False
         self._install_styles()
 
         overlay = Adw.ToastOverlay()
@@ -256,6 +260,18 @@ class VeilpaperWindow(Adw.ApplicationWindow):
         self._login_review_issues.set_child(self._login_review_text)
         review_box.append(self._login_review_issues)
 
+        self._guest_install_button = Gtk.Button(label='Apply in disposable VM…')
+        self._guest_install_button.set_halign(Gtk.Align.START)
+        self._guest_install_button.set_sensitive(False)
+        self._guest_install_button.set_tooltip_text(
+            'VM-only test. Root-owned helper, Polkit authorization, and visual qualification required.')
+        self._guest_install_button.connect('clicked', self._confirm_vm_install)
+        review_box.append(self._guest_install_button)
+        self._guest_install_hint = _label(
+            'System login Apply is not yet available. VM-only testing requires a separately installed helper.',
+            'dim-label', wrap=True)
+        review_box.append(self._guest_install_hint)
+
         footer = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         footer.add_css_class('veilpaper-footer')
         viewport.append(footer)
@@ -415,7 +431,11 @@ class VeilpaperWindow(Adw.ApplicationWindow):
 
     def _clear_login_review(self):
         self._login_review_result = None
-        self._login_review_button.set_sensitive(self._login_candidate is not None)
+        self._guest_install_button.set_sensitive(False)
+        self._guest_install_hint.set_text(
+            'System login Apply is not yet available. A qualified disposable VM is required.')
+        self._login_review_button.set_sensitive(
+            self._login_candidate is not None and not self._vm_install_in_flight)
         self._login_review_issues.set_sensitive(False)
         self._login_review_issues.set_expanded(False)
         self._login_review_text.set_text('')
@@ -452,8 +472,89 @@ class VeilpaperWindow(Adw.ApplicationWindow):
             self._login_review_text.set_text(explanation)
             self._login_review_issues.set_sensitive(True)
             self._login_review_issues.set_expanded(result.verdict == 'BLOCKED')
+            if result.verdict == 'STRUCTURAL_REVIEW_ONLY':
+                available, reason = guest_install_availability()
+                self._guest_install_button.set_sensitive(
+                    available and not self._vm_install_in_flight)
+                self._guest_install_hint.set_text(
+                    'VM-only action available — still requires confirmation and admin authorization.'
+                    if available else f'VM-only installation unavailable: {reason}')
+            else:
+                self._guest_install_button.set_sensitive(False)
+                self._guest_install_hint.set_text(
+                    'Installation blocked. Preserve the existing theme and backup.')
         finally:
             self._login_review_button.set_sensitive(self._login_candidate is not None)
+
+    def _confirm_vm_install(self, _button):
+        if (self._vm_install_in_flight or self._login_candidate is None or
+                self._login_review_result is None or
+                self._login_review_result.verdict != 'STRUCTURAL_REVIEW_ONLY'):
+            return
+        available, reason = guest_install_availability()
+        if not available:
+            self._guest_install_button.set_sensitive(False)
+            self._guest_install_hint.set_text(f'VM-only installation unavailable: {reason}')
+            return
+        dialog = Adw.AlertDialog(
+            heading='Apply this login wallpaper inside the disposable VM?',
+            body=('This privileged operation changes the test VM GDM theme. '
+                  'It does not change your laptop. The original guest resource '
+                  'will be retained for restoration. A separate administrator '
+                  'authentication may be required. No GDM restart occurs automatically.'))
+        dialog.add_response('cancel', 'Cancel')
+        dialog.add_response('install', 'Install in test VM')
+        dialog.set_close_response('cancel')
+        dialog.set_default_response('cancel')
+        dialog.set_response_appearance('install', Adw.ResponseAppearance.DESTRUCTIVE)
+        dialog.connect('response', self._vm_install_response)
+        self._vm_install_dialog = dialog
+        dialog.present(self)
+
+    def _vm_install_response(self, _dialog, response):
+        if (response != 'install' or self._vm_install_in_flight or
+                self._login_candidate is None or self._login_review_result is None or
+                self._login_review_result.verdict != 'STRUCTURAL_REVIEW_ONLY'):
+            return
+        available, reason = guest_install_availability()
+        if not available:
+            self._guest_install_hint.set_text(f'VM-only operation denied: {reason}')
+            self._guest_install_button.set_sensitive(False)
+            return
+        candidate = self._login_candidate
+        self._vm_install_in_flight = True
+        for button in (self._guest_install_button, self._login_choose,
+                       self._login_reset, self._login_prepare, self._login_review_button):
+            button.set_sensitive(False)
+        self._guest_install_hint.set_text(
+            'Requesting VM-only administrator authorization; do not close the test VM.')
+        def worker():
+            try:
+                result = install_candidate_in_guest(candidate)
+                outcome = (True, result)
+            except (VMInstallUnavailable, RuntimeError, OSError, ValueError) as error:
+                outcome = (False, str(error))
+            GLib.idle_add(self._vm_install_complete, *outcome)
+        threading.Thread(target=worker, name='veilpaper-guest-installer',
+                         daemon=True).start()
+
+    def _vm_install_complete(self, succeeded, message):
+        self._vm_install_in_flight = False
+        self._login_choose.set_sensitive(True)
+        self._login_reset.set_sensitive(True)
+        self._login_prepare.set_sensitive(self._pending_login is not None
+                                          and self._login_candidate is None)
+        self._clear_login_review()
+        if succeeded:
+            self._guest_install_hint.set_text(
+                message + ' Restore requires separately reviewed guest testing.')
+            self._toast('Guest installation reported success. Inspect the VM login screen.')
+        else:
+            self._guest_install_hint.set_text(
+                'VM action not verified. ' + message)
+            self._toast('Guest installation was not confirmed; inspect VM recovery state.')
+        self._refresh()
+        return False
 
     def _refresh(self):
         current = state()
