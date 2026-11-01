@@ -33,6 +33,14 @@ The login tool requires a specific verified original GDM checksum. It will refus
 
 The lock extension uses GNOME Shell private APIs. Full regression tests—including normal password unlock, extension disable, upgrade effects, and SELinux behavior—remain outstanding.
 
+## GUI readiness review (beta)
+
+The Login screen card now offers **Choose image → Build candidate → Review readiness**. This review runs the existing read-only [GDM evidence contract](experiments/gdm/BETA_APPROVAL_REVIEW.md) against the **current** installed theme, RPM metadata, existing backup/state and the exact prepared candidate SHA-256. It explicitly shows **Blocked** when a customization or other install blocker is present, and **Structural review passed — no installation approved** only when the read-only evidence is consistent. Expand **Review blockers and next steps** to see the reasons.
+
+The review is requested separately; it does not run when an image is merely selected. Review results are cleared after discarding or replacing a candidate, and on GUI refresh, because they describe only a point-in-time observation. Any invalid evidence contract or inspection error fails closed and leaves the candidate intact. The user-installed GUI bundle now includes the read-only approval reviewer (bundle manifest format 4), while legacy v1–v3 bundles remain safely removable for upgrades.
+
+**This action never runs sudo/pkexec, installs themes, restarts GDM, or enables login Apply/Restore.** Existing customized GDM and its backup are preserved. It cannot bypass the outstanding interactive Workstation visual qualification or production recovery/authorization work.
+
 ## Beta read-only GDM approval review
 
 Before implementing a privileged installer, Veilpaper now supports a [read-only action evidence contract](experiments/gdm/BETA_APPROVAL_REVIEW.md). Commands for planned `install` and `restore` actions emit JSON containing exact expected and observed hashes, RPM/theme/backup evidence, existing customization classification and explicit blockers.
