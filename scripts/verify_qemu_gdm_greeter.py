@@ -8,6 +8,7 @@ not change any guest/host configuration or authenticate a user.
 from __future__ import annotations
 
 import os
+import re
 from pathlib import Path
 import subprocess
 import sys
@@ -66,7 +67,12 @@ def verify(*, command=_command, proc=Path('/proc')):
                                      '--property=User'))
         if props.get('Class') != 'greeter' or props.get('Seat') != 'seat0':
             continue
-        if props.get('Name') not in ('gdm', 'gdm-greeter'):
+        # Fedora's dynamic-user GDM sessions may be suffixed after a
+        # display-manager restart: gdm-greeter, gdm-greeter-2, etc.
+        # Do not accept arbitrary similarly named desktop accounts.
+        name = props.get('Name', '')
+        if not (name == 'gdm' or
+                re.fullmatch(r'gdm-greeter(?:-[1-9][0-9]*)?', name)):
             continue
         try:
             uid = int(props['User'])
