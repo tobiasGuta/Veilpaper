@@ -29,11 +29,31 @@ Veilpaper is an experimental GNOME wallpaper manager that controls **GDM login**
 | GDM beta approval evidence | **PASS — READ ONLY:** exact install candidate SHA-256, RPM/theme/backup/manager-state review, preexisting customization preservation; production restoration remains blocked |
 | Production ownership/recovery contract (offline) | **PASS — MODEL ONLY:** pristine, foreign/legacy customization, orphan backup, six transaction checkpoints, malformed journal and mismatch protection; never grants write/recovery |
 | Exact-action GDM installer controller (disposable VM) | **PASS — fixture integration only:** reuses tested VM transaction writer; validates exact digest under lock; physical-host Apply/Restore still disabled |
+| GUI VM-only Polkit Apply integration | **CODE/UNIT PASS; interactive VM pending:** exact-hash confirmation, fixed root-owned helper, mandatory VM markers; unavailable on physical host |
 | Install/restore across machines | **Not ready** |
 
 The login tool requires a specific verified original GDM checksum. It will refuse unknown host originals, and that is intentional. **Do not apply the login theme tool on another system.**
 
 The lock extension uses GNOME Shell private APIs. Full regression tests—including normal password unlock, extension disable, upgrade effects, and SELinux behavior—remain outstanding.
+
+## VM-only GUI Apply with administrator authorization (experimental)
+
+Veilpaper now has an **Apply in disposable VM…** button beneath the Login
+screen's read-only readiness review. It stays disabled on ordinary Fedora
+systems, including an unmarked physical laptop, and only becomes eligible
+when a structurally clean candidate is prepared **and** the full test-VM
+environment, root-owned helper installation and dedicated Polkit policy
+are present. The operator must explicitly confirm the action; guest
+administrator authentication is then requested via `pkexec`. The root
+helper independently verifies the VM markers and exact SHA-256 under lock.
+The GUI never elevates a user-writable source file.
+
+This is **not the production installer** and no interactive Polkit/GDM visual
+pass has yet been recorded. The manual VM-only helper provisioning procedure
+and release limitations are in the
+[VM GUI Apply runbook](experiments/gdm/VM_GUI_APPLY_RUNBOOK.md).
+The actual system Login Apply/Restore feature remains disabled on normal
+machines; your existing GDM wallpaper and backup are unchanged.
 
 ## Executable GDM installer integration (disposable VM only)
 
