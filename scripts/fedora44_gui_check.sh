@@ -63,6 +63,7 @@ assert not window._login_details.get_sensitive(), 'Details must be hidden until 
 assert not window._candidate_path_label.get_text(), 'No stale path before building'
 assert not window._login_prepare.get_sensitive(), 'Login candidate build requires explicit image selection'
 assert not window._login_review_button.get_sensitive(), 'Review must require a prepared candidate'
+assert not window._guest_install_button.get_sensitive(), 'Guest install must be disabled initially'
 assert not window._login_review_issues.get_sensitive(), 'No readiness report may be displayed yet'
 assert 'candidate' in window._login_progress.get_text().lower(), 'Build-only guidance required'
 assert window._login_choose.get_label() == 'Choose image…', 'Login image picker missing'
@@ -91,9 +92,32 @@ with patch('veilpaper_gui.review_login_candidate', return_value=SimpleNamespace(
     window._review_login(None)
     inspect.assert_called_once_with(mock_candidate)
 assert 'Blocked' in window._login_review_status.get_text()
+assert not window._guest_install_button.get_sensitive(), 'Blocked review cannot enable VM installer'
 assert window._login_review_issues.get_sensitive()
 assert 'Current theme is customized.' in window._login_review_text.get_text()
 assert 'not installation authorization' in window._login_review_text.get_text()
+# Even a structurally clean review must NOT enable Apply on a host or
+# unmarked container. This tests a simulated positive review only.
+with patch('veilpaper_gui.review_login_candidate', return_value=SimpleNamespace(
+        verdict='STRUCTURAL_REVIEW_ONLY',
+        headline='Structural review passed — no installation approved',
+        explanation='No privileged helper available.',
+        issues=())), \
+     patch('veilpaper_gui.guest_install_availability', return_value=(False, 'Unmarked environment')):
+    window._review_login(None)
+assert not window._guest_install_button.get_sensitive(), 'Clean review cannot enable host Apply'
+with patch('veilpaper_gui.review_login_candidate', return_value=SimpleNamespace(
+        verdict='STRUCTURAL_REVIEW_ONLY',
+        headline='Structural review passed — no installation approved',
+        explanation='Only VM actions exist.',
+        issues=())), \
+     patch('veilpaper_gui.guest_install_availability', return_value=(True, 'mock VM')):
+    window._review_login(None)
+assert window._guest_install_button.get_sensitive(), 'Mock guest-only availability enables action'
+# Guard denies the action again at click-time if the VM context changes.
+with patch('veilpaper_gui.guest_install_availability', return_value=(False, 'VM marker lost')):
+    window._confirm_vm_install(None)
+assert not window._guest_install_button.get_sensitive(), 'Losing VM gate must disable Apply'
 with patch('veilpaper_gui.discard_login_candidate') as discard:
     window._show_current_login(None)
     discard.assert_called_once_with(mock_candidate)
