@@ -43,7 +43,31 @@ def _receive(stream, expected_id, *, limit=500):
     raise CaptureBlocked('QMP response deadline exceeded')
 
 
-def capture(sock: Path, output: Path):
+def _reject_blank_screen(output: Path):
+    """Reject inactive/black QEMU scanout, not a claim of usable GDM."""
+    try:
+        from PIL import Image
+    except ImportError as exc:
+        raise CaptureBlocked('Pillow required for graphical evidence validation') from exc
+    try:
+        with Image.open(output) as image:
+            rgb = image.convert('RGB')
+            rgb.thumbnail((160, 100))
+            pixels = list(rgb.getdata())
+    except (ValueError, OSError) as exc:
+        raise CaptureBlocked(f'Cannot inspect captured screenshot pixels: {exc}') from exc
+    if not pixels:
+        raise CaptureBlocked('Empty QEMU screenshot pixels')
+    # QEMU renders both a black scanout and its tiny inactive-display text
+    # as structurally valid PNGs. Require meaningful illuminated coverage.
+    active = sum(max(rgb) > 70 for rgb in pixels)
+    if active * 100 < len(pixels) * 2:
+        raise CaptureBlocked(
+            f'Virtual display blank/inactive: {active}/{len(pixels)} visible pixels')
+    return active / len(pixels)
+
+
+def capture(sock: Path, output: Path, *, wake_display=False, require_visible=False):
     if os.environ.get('GITHUB_ACTIONS') != 'true':
         raise CaptureBlocked('Screenshots permitted only on ephemeral GitHub Actions runner')
     sock = Path(sock)
@@ -65,6 +89,18 @@ def capture(sock: Path, output: Path):
                 raise CaptureBlocked('Missing QMP handshake')
             connection.sendall(b'{"execute":"qmp_capabilities","id":"hello"}\r\n')
             _receive(incoming, 'hello')
+            if wake_display:
+                # Benign synthetic Shift key tap to wake a dimmed greeter,
+                # with no text, credentials, clicks or authentication input.
+                for down, request_id in ((True, 'key-down'), (False, 'key-up')):
+                    event = {'type': 'key', 'data': {
+                        'down': down,
+                        'key': {'type': 'qcode', 'data': 'shift'}}}
+                    cmd = {'execute': 'input-send-event', 'id': request_id,
+                           'arguments': {'events': [event]}}
+                    connection.sendall((json.dumps(cmd) + '\r\n').encode())
+                    _receive(incoming, request_id)
+                time.sleep(2)
             args = {'filename': str(output), 'format': 'png'}
             cmd = {'execute': 'screendump', 'arguments': args, 'id': 'screen'}
             connection.sendall((json.dumps(cmd) + '\r\n').encode())
@@ -79,6 +115,8 @@ def capture(sock: Path, output: Path):
     w, h = struct.unpack('>II', data[16:24])
     if w < 640 or h < 480 or w > 8192 or h > 8192:
         raise CaptureBlocked(f'Unexpected QEMU display dimensions {w}x{h}')
+    if require_visible:
+        _reject_blank_screen(output)
     return w, h
 
 
@@ -86,9 +124,13 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--socket', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--wake-display', action='store_true')
+    parser.add_argument('--require-visible-display', action='store_true')
     args = parser.parse_args(argv)
     try:
-        w, h = capture(args.socket, args.output)
+        w, h = capture(args.socket, args.output,
+                       wake_display=args.wake_display,
+                       require_visible=args.require_visible_display)
         print(f'SCREENSHOT_CAPTURED {w}x{h}: {args.output}')
         print('EVIDENCE ONLY: greeter identity and wallpaper visibility require separate verification.')
         return 0
