@@ -28,11 +28,20 @@ Veilpaper is an experimental GNOME wallpaper manager that controls **GDM login**
 | Graphical GDM screenshot evidence (disposable VM) | **BLOCKED:** Fedora graphical greeter runs, but unattended QEMU scanout remains black; use interactive Workstation visual acceptance, no Apply enablement |
 | GDM beta approval evidence | **PASS — READ ONLY:** exact install candidate SHA-256, RPM/theme/backup/manager-state review, preexisting customization preservation; production restoration remains blocked |
 | Production ownership/recovery contract (offline) | **PASS — MODEL ONLY:** pristine, foreign/legacy customization, orphan backup, six transaction checkpoints, malformed journal and mismatch protection; never grants write/recovery |
+| Exact-action GDM installer controller (disposable VM) | **PASS — fixture integration only:** reuses tested VM transaction writer; validates exact digest under lock; physical-host Apply/Restore still disabled |
 | Install/restore across machines | **Not ready** |
 
 The login tool requires a specific verified original GDM checksum. It will refuse unknown host originals, and that is intentional. **Do not apply the login theme tool on another system.**
 
 The lock extension uses GNOME Shell private APIs. Full regression tests—including normal password unlock, extension disable, upgrade effects, and SELinux behavior—remain outstanding.
+
+## Executable GDM installer integration (disposable VM only)
+
+A new [guest installer controller](scripts/gdm_guest_installer.py) now calls the previously qualified GDM transaction engine instead of implementing a second writer. It provides exact-hash `install` and `restore` actions, and the transaction engine rechecks the expected candidate or active-theme SHA-256 **inside its existing exclusive lock**, before any resource swap.
+
+**This controller is operational only inside a separately authorized, full Fedora 44 disposable VM.** It requires both independent root-owned VM qualification markers, the unchanged VM-only confirmation phrase, and the existing engine's RPM/theme, backup and journal constraints. No new real-host production privilege helper exists; the GUI does not invoke this tool and does not enable GDM Apply/Restore.
+
+The controller's integration test performs a real byte-for-byte install and restore **on a private temporary fixture**, while the existing full-VM tests cover the underlying transaction engine. A real interactive Workstation greeter display and login test remains outstanding, as do product-grade administrator authentication and recovery ownership on ordinary machines. **Do not create or copy the VM-only marker files to a physical Fedora installation.**
 
 ## Production recovery model (offline beta)
 
