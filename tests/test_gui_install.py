@@ -50,11 +50,13 @@ class GUIInstallTests(unittest.TestCase):
         self.assertTrue((self.app / 'veilpaper.py').exists())
         self.assertTrue((self.app / 'experiments/gdm/portable_build.py').exists())
         self.assertTrue((self.app / 'experiments/gdm/install_review.py').exists())
-        self.assertEqual(json.loads((self.app / installer.MANIFEST).read_text())['format'], 3)
+        self.assertTrue((self.app / 'experiments/gdm/approval_review.py').exists())
+        self.assertEqual(json.loads((self.app / installer.MANIFEST).read_text())['format'], 4)
 
     def test_existing_v1_bundle_can_still_be_uninstalled_for_upgrade(self):
         self._install()
-        for name in ('experiments/gdm/portable_build.py', 'experiments/gdm/install_review.py'):
+        for name in ('experiments/gdm/portable_build.py', 'experiments/gdm/install_review.py',
+                     'experiments/gdm/approval_review.py'):
             (self.app / name).unlink()
         icon = self.app / installer.ICON_BUNDLE_PATH
         icon.unlink()
@@ -77,8 +79,10 @@ class GUIInstallTests(unittest.TestCase):
 
     def test_existing_v2_bundle_can_still_be_uninstalled_for_upgrade(self):
         self._install()
-        for name in ('experiments/gdm/portable_build.py', 'experiments/gdm/install_review.py'):
+        for name in ('experiments/gdm/portable_build.py', 'experiments/gdm/install_review.py',
+                     'experiments/gdm/approval_review.py'):
             (self.app / name).unlink()
+        (self.app / 'experiments/gdm/approval_review.py').unlink()
         manifest = self.app / installer.MANIFEST
         record = json.loads(manifest.read_text())
         record['format'] = 2
@@ -89,6 +93,26 @@ class GUIInstallTests(unittest.TestCase):
         with contextlib.redirect_stdout(StringIO()):
             installer.uninstall(self.prefix)
         self.assertEqual(installer.check(self.prefix), ('NOT_INSTALLED', []))
+
+    def test_existing_v3_bundle_remains_removable_for_upgrade(self):
+        self._install()
+        (self.app / 'experiments/gdm/approval_review.py').unlink()
+        manifest = self.app / installer.MANIFEST
+        record = json.loads(manifest.read_text())
+        record['format'] = 3
+        record['files'] = {key: value for key, value in record['files'].items()
+                           if key in installer.V3_FILES}
+        manifest.write_text(json.dumps(record))
+        self.assertEqual(installer.check(self.prefix), ('INSTALLED', []))
+        with contextlib.redirect_stdout(StringIO()):
+            installer.uninstall(self.prefix)
+        self.assertEqual(installer.check(self.prefix), ('NOT_INSTALLED', []))
+
+    def test_tampered_readonly_review_module_refuses_uninstall(self):
+        self._install()
+        (self.app / 'experiments/gdm/approval_review.py').write_text('tampered')
+        with self.assertRaisesRegex(installer.GUIInstallError, 'INCONSISTENT'):
+            installer.uninstall(self.prefix)
 
     def test_custom_icon_modification_prevents_uninstall(self):
         self._install()
