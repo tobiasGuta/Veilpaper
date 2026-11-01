@@ -142,6 +142,37 @@ class LockCLITests(unittest.TestCase):
             self.assertEqual(vp.main(['login', 'preflight']), 0)
             scan.assert_called_once_with()
 
+    def test_approval_install_dispatch_is_unprivileged_and_never_loads_writer(self):
+        with patch.object(vp, 'approval_review_login', return_value=0) as review, \
+             patch.object(vp, 'gdm', side_effect=AssertionError('writer must remain closed')):
+            code = vp.main(['login', 'approval-review', 'install',
+                            '/tmp/candidate.gresource', '--sha256', 'a' * 64])
+        self.assertEqual(code, 0)
+        review.assert_called_once_with(
+            'install', candidate=Path('/tmp/candidate.gresource'),
+            expected_sha256='a' * 64)
+
+    def test_approval_restore_dispatch_never_loads_writer(self):
+        with patch.object(vp, 'approval_review_login', return_value=1) as review, \
+             patch.object(vp, 'gdm', side_effect=AssertionError('writer must remain closed')):
+            code = vp.main(['login', 'approval-review', 'restore',
+                            '--active-sha256', 'b' * 64])
+        self.assertEqual(code, 1)
+        review.assert_called_once_with(
+            'restore', expected_sha256='b' * 64)
+
+    def test_approval_review_requires_exact_digest(self):
+        with self.assertRaises(SystemExit) as caught, \
+             contextlib.redirect_stderr(io.StringIO()):
+            vp.main(['login', 'approval-review', 'install', '/tmp/candidate'])
+        self.assertEqual(caught.exception.code, 2)
+
+    def test_approval_review_root_blocked_before_module_load(self):
+        with patch.object(vp.os, 'geteuid', return_value=0), \
+             patch.object(vp, 'gdm', side_effect=AssertionError('writer not allowed')):
+            with self.assertRaisesRegex(RuntimeError, 'not with sudo'):
+                vp.approval_review_login('restore', expected_sha256='b' * 64)
+
     def test_expected_cli_groups(self):
         with contextlib.redirect_stdout(io.StringIO()):
             with self.assertRaises(SystemExit) as err:
