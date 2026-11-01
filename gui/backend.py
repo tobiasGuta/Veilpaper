@@ -24,6 +24,7 @@ CLI = PROJECT / 'veilpaper.py'
 RPM = PROJECT / 'experiments/gdm/rpm_baseline.py'
 PORTABLE = PROJECT / 'experiments/gdm/portable_build.py'
 REVIEW = PROJECT / 'experiments/gdm/install_review.py'
+APPROVAL = PROJECT / 'experiments/gdm/approval_review.py'
 LOGIN_RESOURCE = Path('/usr/share/gnome-shell/gnome-shell-theme.gresource')
 LOGIN_ASSET = '/org/gnome/shell/theme/fedora-login-wallpaper.'
 EXTENSION_UUID = 'lockscreen@veilpaper.tobiasguta'
@@ -210,6 +211,78 @@ def prepare_login_candidate(source: Path) -> LoginCandidate:
     except BaseException:
         shutil.rmtree(job)
         raise
+
+
+@dataclass(frozen=True)
+class LoginReadiness:
+    """UI-only review snapshot. This is never authorization to write GDM."""
+    verdict: str
+    headline: str
+    explanation: str
+    issues: tuple[str, ...]
+
+
+def review_login_candidate(candidate: LoginCandidate) -> LoginReadiness:
+    """Inspect the candidate against CURRENT GDM state, without any system write.
+
+    A previously prepared candidate is not necessarily safe to install:
+    the active theme might be customized, the backup may already exist, or
+    package files may have changed. Never translate a clean inspection into
+    an Apply action or a stored grant.
+    """
+    if os.geteuid() == 0:
+        raise RuntimeError('Read-only GDM review must run as a regular user.')
+    if not isinstance(candidate, LoginCandidate):
+        raise RuntimeError('Invalid prepared candidate; cannot review.')
+    if not re.fullmatch(r'[0-9a-f]{64}', candidate.digest):
+        raise RuntimeError('Prepared candidate digest must be an exact SHA-256.')
+
+    checker = _load(APPROVAL, 'veilpaper_gui_approval_review')
+    report = checker.inspect_action(
+        'install', candidate=candidate.path, expected_sha256=candidate.digest)
+    if not isinstance(report, dict) or (
+            report.get('schema_version') != 1 or
+            report.get('read_only') is not True or
+            report.get('authorization') != 'NOT_GRANTED' or
+            report.get('privileged_helper_available') is not False or
+            report.get('action') != 'install' or
+            report.get('expected_sha256') != candidate.digest or
+            report.get('candidate') != str(candidate.path)):
+        raise RuntimeError('Read-only reviewer returned an invalid evidence contract.')
+
+    verdict = report.get('verdict')
+    raw_issues = report.get('issues')
+    if verdict not in ('BLOCKED', 'STRUCTURAL_REVIEW_ONLY') or (
+            not isinstance(raw_issues, list) or
+            any(not isinstance(item, str) for item in raw_issues)):
+        raise RuntimeError('Read-only reviewer returned an invalid verdict or issue list.')
+    issues = tuple(raw_issues)
+    if verdict == 'STRUCTURAL_REVIEW_ONLY':
+        if (issues or report.get('candidate_sha256') != candidate.digest or
+                report.get('existing_customization') != 'NONE_DETECTED'):
+            raise RuntimeError('Contradictory structural review evidence; refusing readiness.')
+        return LoginReadiness(
+            verdict=verdict,
+            headline='Structural review passed — no installation approved',
+            explanation=('Candidate matches the read-only checks. Graphical '
+                         'qualification, administrator authorization and a '
+                         'production recovery helper are still required.'),
+            issues=(),
+        )
+
+    if not issues:
+        issues = ('Read-only review did not provide enough evidence.',)
+    if report.get('existing_customization') == 'CUSTOM_OR_UNKNOWN':
+        headline = 'Blocked — existing login customization preserved'
+    else:
+        headline = 'Blocked — installation requirements are not met'
+    return LoginReadiness(
+        verdict='BLOCKED',
+        headline=headline,
+        explanation=('No change was made. The current theme and backup remain '
+                     'untouched; no administrator authorization is available.'),
+        issues=issues,
+    )
 
 
 def discard_login_candidate(candidate: LoginCandidate) -> None:
