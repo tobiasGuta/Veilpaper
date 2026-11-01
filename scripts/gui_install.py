@@ -30,9 +30,12 @@ LEGACY_FILES = (
 )
 ICON_BUNDLE_PATH = 'gui/assets/me.tobiasguta.Veilpaper.svg'
 V2_FILES = LEGACY_FILES + (ICON_BUNDLE_PATH,)
-FILES = V2_FILES + (
+V3_FILES = V2_FILES + (
     'experiments/gdm/portable_build.py',
     'experiments/gdm/install_review.py',
+)
+FILES = V3_FILES + (
+    'experiments/gdm/approval_review.py',
 )
 MANIFEST = 'gui-install-manifest.json'
 
@@ -123,7 +126,7 @@ def _expected():
 
 def _manifest(files, launcher, desktop):
     return (json.dumps({
-        'format': 3,
+        'format': 4,
         'files': {name: _hash(src) for name, src in files.items()},
         'launcher': hashlib.sha256(launcher).hexdigest(),
         'desktop': hashlib.sha256(desktop).hexdigest(),
@@ -148,7 +151,8 @@ def check(prefix):
         # uninstall + install without overwriting their working GUI bundle.
         expected = (LEGACY_FILES if data['format'] == 1 else
                     V2_FILES if data['format'] == 2 else
-                    FILES if data['format'] == 3 else ())
+                    V3_FILES if data['format'] == 3 else
+                    FILES if data['format'] == 4 else ())
         if not expected or set(data['files']) != set(expected):
             raise ValueError('Unknown or incompatible GUI bundle manifest')
         for label in ('launcher', 'desktop'):
