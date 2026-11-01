@@ -238,8 +238,18 @@ def _record(base, candidate, meta, resource):
             'resource': resource}
 
 
-def install(candidate):
+def install(candidate, *, expected_candidate_sha256=None):
+    """Write only inside the already admitted disposable VM.
+
+    An optional expected SHA-256 binds a separate caller's exact action to
+    the bytes read while the transaction lock is held.
+    """
     candidate = Path(candidate)
+    if expected_candidate_sha256 is not None and not (
+            isinstance(expected_candidate_sha256, str) and
+            len(expected_candidate_sha256) == 64 and
+            all(c in '0123456789abcdef' for c in expected_candidate_sha256)):
+        raise LabBlocked('Invalid expected candidate SHA-256.')
     with _locked():
         if _state() is not None or (LAB / 'original.gresource').exists():
             raise LabBlocked('Existing VM lab transaction; refusing repeated install')
@@ -255,6 +265,9 @@ def install(candidate):
             raise LabBlocked('First-time install review blocked: ' + '; '.join(report['issues']))
         pristine = _bytes(THEME)
         selected = _bytes(candidate)
+        if (expected_candidate_sha256 is not None and
+                _sha(selected) != expected_candidate_sha256):
+            raise LabBlocked('Exact-action candidate SHA-256 changed; no theme write.')
         if _sha(pristine) != report['active_sha256'] or _sha(selected) != report['candidate_sha256']:
             raise LabBlocked('Theme or candidate changed after first-time review')
         record = _record(pristine, selected, meta, report['added_resource'])
@@ -284,7 +297,13 @@ def install(candidate):
         return 'VM_REAL_GDM_INSTALLED'
 
 
-def restore():
+def restore(*, expected_active_sha256=None):
+    """Restore only if the locked active bytes match an optional exact action."""
+    if expected_active_sha256 is not None and not (
+            isinstance(expected_active_sha256, str) and
+            len(expected_active_sha256) == 64 and
+            all(c in '0123456789abcdef' for c in expected_active_sha256)):
+        raise LabBlocked('Invalid expected active GDM SHA-256.')
     with _locked():
         record = _state()
         if record is None:
@@ -295,6 +314,9 @@ def restore():
         if _sha(base) != record['base']:
             raise LabBlocked('Original backup corrupted; refusing restore')
         current = _sha(_bytes(THEME))
+        if (expected_active_sha256 is not None and
+                current != expected_active_sha256):
+            raise LabBlocked('Exact-action active GDM SHA-256 changed; no restoration write.')
         phase = record['phase']
         if current == record['base'] and phase in ('install-prepared', 'restore-prepared', 'restored'):
             record['phase'] = 'restored'
