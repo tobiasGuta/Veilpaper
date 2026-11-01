@@ -44,6 +44,27 @@ class GreeterIdentityTests(unittest.TestCase):
         self.assertEqual(result['pid'], 1218)
         self.assertEqual(result['session'], 'c1')
 
+    def test_fedora_second_dynamic_greeter_after_restart_passes(self):
+        # Actual Fedora 44 graphical VM diagnostic: c3, gdm-greeter-2.
+        result = greeter.verify(
+            command=self.cmd(name='gdm-greeter-2', sessions='c3'),
+            proc=self.proc)
+        self.assertEqual(result['user'], 'gdm-greeter-2')
+        self.assertEqual(result['session'], 'c3')
+
+    def test_dynamic_greeter_with_larger_numeric_suffix_passes(self):
+        result = greeter.verify(
+            command=self.cmd(name='gdm-greeter-12'), proc=self.proc)
+        self.assertEqual(result['user'], 'gdm-greeter-12')
+
+    def test_greeter_prefix_spoof_rejected(self):
+        for username in ('gdm-greeter-extra', 'gdm-greeter-2-admin',
+                         'gdm-greeter-0', 'gdm-greeter-02',
+                         'gdm-greeter-', 'gdm-greeter+2'):
+            with self.subTest(username=username):
+                with self.assertRaises(greeter.GreeterNotReady):
+                    greeter.verify(command=self.cmd(name=username), proc=self.proc)
+
     def test_legacy_gdm_account_passes_only_when_session_is_greeter(self):
         result = greeter.verify(command=self.cmd(name='gdm'), proc=self.proc)
         self.assertEqual(result['user'], 'gdm')
