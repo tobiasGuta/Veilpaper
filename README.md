@@ -27,11 +27,16 @@ Veilpaper is an experimental GNOME wallpaper manager that controls **GDM login**
 | Real GDM SIGKILL recovery (all four journal/swap checkpoints) | **PASS** in disposable Fedora 44 full VMs, including reboot, recovery and clean RPM verification; standard desktop Apply remains disabled |
 | Graphical GDM screenshot evidence (disposable VM) | **BLOCKED:** Fedora graphical greeter runs, but unattended QEMU scanout remains black; use interactive Workstation visual acceptance, no Apply enablement |
 | GDM beta approval evidence | **PASS — READ ONLY:** exact install candidate SHA-256, RPM/theme/backup/manager-state review, preexisting customization preservation; production restoration remains blocked |
+| Production ownership/recovery contract (offline) | **PASS — MODEL ONLY:** pristine, foreign/legacy customization, orphan backup, six transaction checkpoints, malformed journal and mismatch protection; never grants write/recovery |
 | Install/restore across machines | **Not ready** |
 
 The login tool requires a specific verified original GDM checksum. It will refuse unknown host originals, and that is intentional. **Do not apply the login theme tool on another system.**
 
 The lock extension uses GNOME Shell private APIs. Full regression tests—including normal password unlock, extension disable, upgrade effects, and SELinux behavior—remain outstanding.
+
+## Production recovery model (offline beta)
+
+The [ownership and recovery model](experiments/gdm/PRODUCTION_OWNERSHIP_RECOVERY.md) now classifies hypothetical first-install, existing-customization and interrupted-transaction evidence. It explicitly preserves legacy backups and unowned themes, quarantines mismatched or malformed journals and accounts for the six meaningful journal/active-resource combinations from disposable-VM recovery testing. Every result forbids writes, restoration, backup deletion and journal finalization; a matching journal is **not** proof of ownership. This is offline engineering, not an installed or privileged production helper. Graphical Workstation acceptance and administrator-scoped write/recovery implementation remain outstanding.
 
 ## GUI readiness review (beta)
 
