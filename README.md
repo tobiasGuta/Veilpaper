@@ -26,11 +26,23 @@ Veilpaper is an experimental GNOME wallpaper manager that controls **GDM login**
 | Real GDM install/reboot/restore (guest-only) | **PASS** in disposable Fedora 44 VM, including original SHA-256, mode, SELinux label, timestamp and clean RPM verification |
 | Real GDM SIGKILL recovery (all four journal/swap checkpoints) | **PASS** in disposable Fedora 44 full VMs, including reboot, recovery and clean RPM verification; standard desktop Apply remains disabled |
 | Graphical GDM screenshot evidence (disposable VM) | **BLOCKED:** Fedora graphical greeter runs, but unattended QEMU scanout remains black; use interactive Workstation visual acceptance, no Apply enablement |
+| GDM beta approval evidence | **PASS — READ ONLY:** exact install candidate SHA-256, RPM/theme/backup/manager-state review, preexisting customization preservation; production restoration remains blocked |
 | Install/restore across machines | **Not ready** |
 
 The login tool requires a specific verified original GDM checksum. It will refuse unknown host originals, and that is intentional. **Do not apply the login theme tool on another system.**
 
 The lock extension uses GNOME Shell private APIs. Full regression tests—including normal password unlock, extension disable, upgrade effects, and SELinux behavior—remain outstanding.
+
+## Beta read-only GDM approval review
+
+Before implementing a privileged installer, Veilpaper now supports a [read-only action evidence contract](experiments/gdm/BETA_APPROVAL_REVIEW.md). Commands for planned `install` and `restore` actions emit JSON containing exact expected and observed hashes, RPM/theme/backup evidence, existing customization classification and explicit blockers.
+
+```bash
+python3 veilpaper.py login approval-review install /path/to/candidate.gresource --sha256 EXACT_CANDIDATE_SHA256
+python3 veilpaper.py login approval-review restore --active-sha256 EXACT_ACTIVE_THEME_SHA256
+```
+
+The arguments marked `EXACT_...` above are placeholders for actual 64-character lowercase SHA-256 digests. A clean install review returns `STRUCTURAL_REVIEW_ONLY`, not an approval. **Restore is always blocked**, pending a production recovery and ownership contract. No administrator authentication, GDM modification, backup overwrite, GDM restart or privilege escalation can result from this feature. The Apply/Restore login actions in the GUI are still not enabled.
 
 ## Graphical GDM evidence (experimental)
 
