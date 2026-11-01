@@ -25,7 +25,7 @@ Veilpaper is an experimental GNOME wallpaper manager that controls **GDM login**
 | Disposable Fedora VM admission | **PASS** in disposable Fedora 44 full VM; read-only RPM review, five recoveries, four SIGKILL fixture tests |
 | Real GDM install/reboot/restore (guest-only) | **PASS** in disposable Fedora 44 VM, including original SHA-256, mode, SELinux label, timestamp and clean RPM verification |
 | Real GDM SIGKILL recovery (all four journal/swap checkpoints) | **PASS** in disposable Fedora 44 full VMs, including reboot, recovery and clean RPM verification; standard desktop Apply remains disabled |
-| Graphical GDM screenshot evidence (disposable VM) | **IN PROGRESS:** virtio-vga/QMP capture trial, not a visual approval; manual screenshot review required |
+| Graphical GDM screenshot evidence (disposable VM) | **BLOCKED:** Fedora graphical greeter runs, but unattended QEMU scanout remains black; use interactive Workstation visual acceptance, no Apply enablement |
 | Install/restore across machines | **Not ready** |
 
 The login tool requires a specific verified original GDM checksum. It will refuse unknown host originals, and that is intentional. **Do not apply the login theme tool on another system.**
@@ -34,7 +34,7 @@ The lock extension uses GNOME Shell private APIs. Full regression tests—includ
 
 ## Graphical GDM evidence (experimental)
 
-A [separate graphical Fedora 44 GNOME full-VM workflow](https://github.com/tobiasGuta/Veilpaper/actions/runs/41249966043) now attempts to capture four screenshots from QEMU's virtual GPU: unmodified stock greeter, customized greeter, customized greeter after a real VM reboot, and restored stock greeter. It verifies `gdm.service`, a GNOME Shell process owned by the GDM user, and package integrity. The PNGs are retained briefly as GitHub Actions artifacts for independent visual inspection.
+The [latest graphical Fedora 44 guest run](https://github.com/tobiasGuta/Veilpaper/actions/runs/41256374904) **failed before GDM writes**: a valid seat0 GDM greeter process ran, but QEMU screenshot validation blocked an all-black display (`0/16000` lit pixels). That workflow has been changed to **manual dispatch only**, to avoid repeated costly attempts with the same unqualified virtual display. [Next: a disposable Fedora 44 Workstation VM with a visible interactive console and explicit visual acceptance](experiments/gdm/WORKSTATION_VISUAL_ACCEPTANCE.md).
 
 **Do not interpret a completed screenshot capture as visual PASS.** The guest starts from a verified Fedora **Cloud Base** image with GNOME added, not an installed Workstation Live ISO. See [graphical acceptance limits](experiments/gdm/GRAPHICAL_GDM_QUALIFICATION.md). Visible greeter controls, real user authentication and lock/unlock, Workstation-specific behavior, hard power loss and independent rescue remain open. The host login theme and the GUI's disabled Apply control remain unchanged.
 
