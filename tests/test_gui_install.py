@@ -82,7 +82,6 @@ class GUIInstallTests(unittest.TestCase):
         for name in ('experiments/gdm/portable_build.py', 'experiments/gdm/install_review.py',
                      'experiments/gdm/approval_review.py'):
             (self.app / name).unlink()
-        (self.app / 'experiments/gdm/approval_review.py').unlink()
         manifest = self.app / installer.MANIFEST
         record = json.loads(manifest.read_text())
         record['format'] = 2
