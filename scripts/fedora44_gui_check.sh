@@ -68,22 +68,35 @@ window._pending_login = Path('/tmp/veilpaper-staged-login-image.png')
 window._login_prepare.set_sensitive(True)
 from types import SimpleNamespace
 from unittest.mock import patch
-with patch('veilpaper_gui.prepare_login_candidate', return_value=SimpleNamespace(
-        path=Path('/tmp/test-candidate.gresource'),
-        digest='a' * 64,
-        baseline_digest='b' * 64,
-        resource='/org/gnome/shell/theme/fedora-login-wallpaper.png')):
+mock_candidate = SimpleNamespace(
+    path=Path('/tmp/test-candidate.gresource'),
+    digest='a' * 64,
+    baseline_digest='b' * 64,
+    resource='/org/gnome/shell/theme/fedora-login-wallpaper.png')
+with patch('veilpaper_gui.prepare_login_candidate', return_value=mock_candidate):
     window._prepare_login(None)
 assert window._login_details.get_sensitive(), 'Verification should enable details'
 assert window._candidate_path_label.get_text() == '/tmp/test-candidate.gresource'
 assert window._candidate_digest_label.get_text() == 'a' * 64
 assert 'not installed' in window._login_progress.get_text().lower()
-window._show_current_login(None)
-assert window._pending_login is None, 'Show current must discard the pending selection'
+assert window._login_reset.get_label() == 'Discard candidate', 'Verified candidate should be disposable'
+with patch('veilpaper_gui.discard_login_candidate') as discard:
+    window._show_current_login(None)
+    discard.assert_called_once_with(mock_candidate)
+assert window._login_reset.get_label() == 'Show current', 'Discard restores original action label'
+assert window._pending_login is None, 'Discard must clear the pending selection'
 assert not window._login_prepare.get_sensitive(), 'Reset must disable preparation'
 assert window._login_candidate is None, 'Reset must clear selected candidate'
 assert not window._login_details.get_sensitive(), 'Reset must disable candidate details'
 assert not window._candidate_digest_label.get_text(), 'Reset must clear stale candidate hash'
+# An unsafe cleanup must leave the candidate visible, not silently lose it.
+window._pending_login = Path('/tmp/test-login-image.png')
+window._login_candidate = mock_candidate
+window._login_reset.set_label('Discard candidate')
+with patch('veilpaper_gui.discard_login_candidate', side_effect=RuntimeError('changed')):
+    window._show_current_login(None)
+assert window._login_candidate is mock_candidate, 'Failed discard must preserve pending candidate'
+assert window._login_reset.get_label() == 'Discard candidate', 'Failed discard must preserve action label'
 
 assert window._login_detail.get_text(), 'Login status must be visible'
 window.close()
