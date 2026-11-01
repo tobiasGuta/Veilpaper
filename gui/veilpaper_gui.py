@@ -23,7 +23,8 @@ except (ImportError, ValueError) as error:
 
 # Allow running from repository checkout and from the user-installed bundle.
 from backend import (lock_image, login_preview, state, set_lock, restore_lock,
-                     prepare_login_candidate, discard_login_candidate)
+                     prepare_login_candidate, discard_login_candidate,
+                     review_login_candidate)
 
 APP_ID = 'me.tobiasguta.Veilpaper'
 APP_VERSION = '0.1.0-dev'
@@ -72,6 +73,7 @@ class VeilpaperWindow(Adw.ApplicationWindow):
         self._pending: Path | None = None
         self._pending_login: Path | None = None
         self._login_candidate = None
+        self._login_review_result = None
         self._install_styles()
 
         overlay = Adw.ToastOverlay()
@@ -84,7 +86,7 @@ class VeilpaperWindow(Adw.ApplicationWindow):
         toolbar.add_top_bar(header)
         refresh = Gtk.Button(icon_name='view-refresh-symbolic')
         refresh.set_tooltip_text('Refresh screen status')
-        refresh.connect('clicked', lambda _: self._refresh())
+        refresh.connect('clicked', self._refresh_from_button)
         header.pack_end(refresh)
         about_button = Gtk.Button(icon_name='help-about-symbolic')
         about_button.set_tooltip_text('About Veilpaper')
@@ -230,6 +232,29 @@ class VeilpaperWindow(Adw.ApplicationWindow):
         self._login_reset.add_css_class('flat')
         self._login_reset.connect('clicked', self._show_current_login)
         login_actions.append(self._login_reset)
+
+        # Review is an explicitly requested READ-ONLY check, never an
+        # installation step. Keep it separate from the image action row.
+        review_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        login.append(review_box)
+        self._login_review_button = Gtk.Button(label='Review readiness')
+        self._login_review_button.set_halign(Gtk.Align.START)
+        self._login_review_button.set_sensitive(False)
+        self._login_review_button.set_tooltip_text(
+            'Inspect the current GDM state and prepared candidate; no installation or approval')
+        self._login_review_button.connect('clicked', self._review_login)
+        review_box.append(self._login_review_button)
+        self._login_review_status = _label(
+            'Build a candidate to check installation requirements (read-only).',
+            'dim-label', wrap=True)
+        review_box.append(self._login_review_status)
+        self._login_review_issues = Gtk.Expander(label='Review blockers and next steps')
+        self._login_review_issues.set_sensitive(False)
+        self._login_review_text = _label('', wrap=True)
+        self._login_review_text.set_selectable(True)
+        self._login_review_text.set_wrap_mode(Pango.WrapMode.WORD_CHAR)
+        self._login_review_issues.set_child(self._login_review_text)
+        review_box.append(self._login_review_issues)
 
         footer = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         footer.add_css_class('veilpaper-footer')
@@ -383,6 +408,53 @@ class VeilpaperWindow(Adw.ApplicationWindow):
             self._lock_icon.set_visible_child_name('placeholder')
             self._toast(f'Cannot preview wallpaper: {error}')
 
+    def _refresh_from_button(self, _button):
+        # Reports only describe a point-in-time filesystem snapshot.
+        self._clear_login_review()
+        self._refresh()
+
+    def _clear_login_review(self):
+        self._login_review_result = None
+        self._login_review_button.set_sensitive(self._login_candidate is not None)
+        self._login_review_issues.set_sensitive(False)
+        self._login_review_issues.set_expanded(False)
+        self._login_review_text.set_text('')
+        if self._login_candidate is None:
+            self._login_review_status.set_text(
+                'Build a candidate to check installation requirements (read-only).')
+        else:
+            self._login_review_status.set_text(
+                'Candidate built. Review current GDM requirements separately; no installation.')
+
+    def _review_login(self, _button):
+        if self._login_candidate is None:
+            return
+        # Never request root access or call any GDM writer.
+        self._login_review_button.set_sensitive(False)
+        self._login_review_status.set_text('Inspecting current GDM state — read-only…')
+        try:
+            result = review_login_candidate(self._login_candidate)
+        except (RuntimeError, OSError, ValueError, TypeError) as error:
+            self._login_review_result = None
+            self._login_review_status.set_text(
+                'Review unavailable — no permission granted; login unchanged.')
+            self._login_review_text.set_text(str(error))
+            self._login_review_issues.set_sensitive(True)
+            self._login_review_issues.set_expanded(True)
+        else:
+            self._login_review_result = result
+            self._login_review_status.set_text(result.headline)
+            explanation = result.explanation
+            if result.issues:
+                explanation += '\n\nBlockers:\n' + '\n'.join(
+                    '• ' + item for item in result.issues)
+            explanation += '\n\nThis is not installation authorization.'
+            self._login_review_text.set_text(explanation)
+            self._login_review_issues.set_sensitive(True)
+            self._login_review_issues.set_expanded(result.verdict == 'BLOCKED')
+        finally:
+            self._login_review_button.set_sensitive(self._login_candidate is not None)
+
     def _refresh(self):
         current = state()
         active = current.extension_state == 'Extension active'
@@ -454,6 +526,7 @@ class VeilpaperWindow(Adw.ApplicationWindow):
                     return
             self._pending_login = path
             self._login_candidate = None
+            self._clear_login_review()
             self._login_reset.set_label('Show current')
             self._login_details.set_sensitive(False)
             self._candidate_path_label.set_text('')
@@ -480,6 +553,7 @@ class VeilpaperWindow(Adw.ApplicationWindow):
             self._toast(f'GDM candidate could not be prepared: {error}')
             return
         self._login_candidate = result
+        self._clear_login_review()
         self._login_reset.set_label('Discard candidate')
         self._candidate_path_label.set_text(str(result.path))
         self._candidate_digest_label.set_text(result.digest)
@@ -505,6 +579,7 @@ class VeilpaperWindow(Adw.ApplicationWindow):
                 return
         self._pending_login = None
         self._login_candidate = None
+        self._clear_login_review()
         self._login_reset.set_label('Show current')
         self._login_details.set_sensitive(False)
         self._candidate_path_label.set_text('')
