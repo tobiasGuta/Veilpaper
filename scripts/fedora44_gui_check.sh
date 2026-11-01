@@ -62,6 +62,8 @@ for preview in (window._lock_picture, window._login_picture):
 assert not window._login_details.get_sensitive(), 'Details must be hidden until verified'
 assert not window._candidate_path_label.get_text(), 'No stale path before building'
 assert not window._login_prepare.get_sensitive(), 'Login candidate build requires explicit image selection'
+assert not window._login_review_button.get_sensitive(), 'Review must require a prepared candidate'
+assert not window._login_review_issues.get_sensitive(), 'No readiness report may be displayed yet'
 assert 'candidate' in window._login_progress.get_text().lower(), 'Build-only guidance required'
 assert window._login_choose.get_label() == 'Choose image…', 'Login image picker missing'
 window._pending_login = Path('/tmp/veilpaper-staged-login-image.png')
@@ -79,7 +81,19 @@ assert window._login_details.get_sensitive(), 'Verification should enable detail
 assert window._candidate_path_label.get_text() == '/tmp/test-candidate.gresource'
 assert window._candidate_digest_label.get_text() == 'a' * 64
 assert 'not installed' in window._login_progress.get_text().lower()
+assert window._login_review_button.get_sensitive(), 'Built candidate enables read-only review'
 assert window._login_reset.get_label() == 'Discard candidate', 'Verified candidate should be disposable'
+with patch('veilpaper_gui.review_login_candidate', return_value=SimpleNamespace(
+        verdict='BLOCKED',
+        headline='Blocked — existing login customization preserved',
+        explanation='No system write occurred.',
+        issues=('Current theme is customized.',))) as inspect:
+    window._review_login(None)
+    inspect.assert_called_once_with(mock_candidate)
+assert 'Blocked' in window._login_review_status.get_text()
+assert window._login_review_issues.get_sensitive()
+assert 'Current theme is customized.' in window._login_review_text.get_text()
+assert 'not installation authorization' in window._login_review_text.get_text()
 with patch('veilpaper_gui.discard_login_candidate') as discard:
     window._show_current_login(None)
     discard.assert_called_once_with(mock_candidate)
@@ -87,6 +101,8 @@ assert window._login_reset.get_label() == 'Show current', 'Discard restores orig
 assert window._pending_login is None, 'Discard must clear the pending selection'
 assert not window._login_prepare.get_sensitive(), 'Reset must disable preparation'
 assert window._login_candidate is None, 'Reset must clear selected candidate'
+assert not window._login_review_button.get_sensitive(), 'Discard must disable readiness review'
+assert not window._login_review_issues.get_sensitive(), 'Discard clears stale blockers'
 assert not window._login_details.get_sensitive(), 'Reset must disable candidate details'
 assert not window._candidate_digest_label.get_text(), 'Reset must clear stale candidate hash'
 # An unsafe cleanup must leave the candidate visible, not silently lose it.
@@ -97,6 +113,15 @@ with patch('veilpaper_gui.discard_login_candidate', side_effect=RuntimeError('ch
     window._show_current_login(None)
 assert window._login_candidate is mock_candidate, 'Failed discard must preserve pending candidate'
 assert window._login_reset.get_label() == 'Discard candidate', 'Failed discard must preserve action label'
+window._clear_login_review()
+assert window._login_review_button.get_sensitive(), 'Retained candidate may be re-reviewed'
+with patch('veilpaper_gui.review_login_candidate', side_effect=RuntimeError('inspector unavailable')):
+    window._review_login(None)
+assert window._login_candidate is mock_candidate, 'Review errors must not delete a candidate'
+assert 'unavailable' in window._login_review_status.get_text().lower()
+assert window._login_review_issues.get_sensitive(), 'Inspection errors must be visible'
+window._refresh_from_button(None)
+assert not window._login_review_issues.get_sensitive(), 'Refresh must discard stale readiness evidence'
 
 assert window._login_detail.get_text(), 'Login status must be visible'
 window.close()
