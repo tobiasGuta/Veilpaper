@@ -182,6 +182,53 @@ class VMRealTransactionTests(unittest.TestCase):
                 txn.install(self.source)
         self.assertEqual(dest.read_bytes(), self.old)
 
+    def test_exact_action_install_hash_mismatch_does_not_touch_guest_theme(self):
+        original = self.theme.read_bytes()
+        with self._fake_root_metadata(), self.assertRaisesRegex(
+                txn.LabBlocked, 'Exact-action candidate SHA-256 changed'):
+            txn.install(self.source, expected_candidate_sha256='f' * 64)
+        self.assertEqual(self.theme.read_bytes(), original)
+        self.assertFalse((self.lab / 'state.json').exists())
+        self.assertFalse((self.lab / 'original.gresource').exists())
+
+    def test_exact_action_install_matching_hash_preserves_previous_operation(self):
+        expected = txn._sha(self.source.read_bytes())
+        with self._fake_root_metadata():
+            self.assertEqual(
+                txn.install(self.source, expected_candidate_sha256=expected),
+                'VM_REAL_GDM_INSTALLED')
+        self.assertEqual(self.theme.read_bytes(), self.new)
+
+    def test_exact_action_restore_hash_mismatch_preserves_installed_theme(self):
+        self._installed()
+        original_journal = (self.lab / 'state.json').read_bytes()
+        with self._fake_root_metadata(), self.assertRaisesRegex(
+                txn.LabBlocked, 'Exact-action active GDM SHA-256 changed'):
+            txn.restore(expected_active_sha256='f' * 64)
+        self.assertEqual(self.theme.read_bytes(), self.new)
+        self.assertEqual((self.lab / 'state.json').read_bytes(), original_journal)
+
+    def test_exact_action_restore_matching_hash_succeeds(self):
+        self._installed()
+        with self._fake_root_metadata():
+            self.assertEqual(
+                txn.restore(expected_active_sha256=txn._sha(self.new)),
+                'VM_REAL_GDM_RESTORED')
+        self.assertEqual(self.theme.read_bytes(), self.old)
+
+    def test_malformed_expected_action_sha_denied_before_fs_operations(self):
+        for bad in ('zz', 'A' * 64, '', None):
+            with self.subTest(bad=bad), self._fake_root_metadata():
+                # None intentionally means legacy VM-only interface (backward
+                # compatible), while malformed non-None SHA is always denied.
+                if bad is None:
+                    continue
+                with self.assertRaisesRegex(txn.LabBlocked, 'Invalid expected'):
+                    txn.install(self.source, expected_candidate_sha256=bad)
+                with self.assertRaisesRegex(txn.LabBlocked, 'Invalid expected'):
+                    txn.restore(expected_active_sha256=bad)
+        self.assertEqual(self.theme.read_bytes(), self.old)
+
     def test_cli_without_vm_authorization_does_not_write(self):
         with patch.object(txn, 'gate') as guard, \
              contextlib.redirect_stderr(StringIO()) as errors:
