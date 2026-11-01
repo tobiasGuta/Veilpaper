@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3
 """Veilpaper GDM guest installer controller — disposable Fedora 44 VM ONLY.
 
 Operational install/restore orchestration over the existing, previously
