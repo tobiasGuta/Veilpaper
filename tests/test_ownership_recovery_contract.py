@@ -141,7 +141,7 @@ class OwnershipRecoveryModelTests(unittest.TestCase):
     def test_malformed_and_unknown_journals_quarantined(self):
         changes = (
             {'version': True}, {'version': 3}, {'phase': 'unknown-phase'},
-            {'phase': []}, {'base': FOREIGN}, {'candidate': BASE},
+            {'phase': []}, {'candidate': BASE},
             {'uid': 1000}, {'uid': True}, {'mode': 0o777},
             {'selinux_hex': 'xx'}, {'selinux_hex': 'a'},
             {'resource': '/tmp/injected'}, {'mtime_ns': -1},
@@ -152,6 +152,12 @@ class OwnershipRecoveryModelTests(unittest.TestCase):
                 e = claim('installed')
                 e['journal'].update(change)
                 self.assertEqual(self.verdict(e), 'QUARANTINE_UNVERIFIED_JOURNAL')
+
+    def test_valid_but_tampered_journal_baseline_is_inconsistent_not_owned(self):
+        evidence = claim('installed')
+        evidence['journal']['base'] = FOREIGN
+        self.assertEqual(
+            self.verdict(evidence), 'QUARANTINE_INCONSISTENT_BASELINE')
 
     def test_unknown_journal_fields_denied(self):
         e = claim('installed')
