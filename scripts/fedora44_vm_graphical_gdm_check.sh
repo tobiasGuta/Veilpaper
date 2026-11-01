@@ -24,8 +24,12 @@ screenshots="$RUNNER_TEMP/veilpaper-gdm-visual"
 mkdir -p "$screenshots"
 chmod 0700 "$screenshots"
 snapshot() {
-  python3 "$GITHUB_WORKSPACE/scripts/qemu_capture_greeter.py" \
-    --socket "$work/qmp.sock" --output "$screenshots/$1.png"
+  local name="$1"
+  local options=(--socket "$work/qmp.sock" --output "$screenshots/$name.png")
+  if [[ "$name" != diagnostic-* ]]; then
+    options+=(--wake-display --require-visible-display)
+  fi
+  python3 "$GITHUB_WORKSPACE/scripts/qemu_capture_greeter.py" "${options[@]}"
 }
 verify_greeter() {
   local attempt=0
@@ -124,7 +128,8 @@ qemu-system-x86_64 -machine "accel=$accel" -cpu "$cpu" -smp 4 -m 6144 \
   -netdev user,id=net0,hostfwd=tcp:127.0.0.1:22357-:22 \
   -device virtio-net-pci,netdev=net0 \
   -vga none -device virtio-vga \
-  -display none -qmp "unix:$work/qmp.sock,server=on,wait=off" \
+  -display "vnc=unix:$work/guest-vnc.sock" \
+  -qmp "unix:$work/qmp.sock,server=on,wait=off" \
   -serial "file:$work/serial.log" -monitor none \
   -daemonize -pidfile "$work/qemu.pid"
 qemu_pid="$(cat "$work/qemu.pid")"
