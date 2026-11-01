@@ -51,10 +51,12 @@ class GUIInstallTests(unittest.TestCase):
         self.assertTrue((self.app / 'experiments/gdm/portable_build.py').exists())
         self.assertTrue((self.app / 'experiments/gdm/install_review.py').exists())
         self.assertTrue((self.app / 'experiments/gdm/approval_review.py').exists())
-        self.assertEqual(json.loads((self.app / installer.MANIFEST).read_text())['format'], 4)
+        self.assertTrue((self.app / 'gui/vm_install_bridge.py').exists())
+        self.assertEqual(json.loads((self.app / installer.MANIFEST).read_text())['format'], 5)
 
     def test_existing_v1_bundle_can_still_be_uninstalled_for_upgrade(self):
         self._install()
+        (self.app / 'gui/vm_install_bridge.py').unlink()
         for name in ('experiments/gdm/portable_build.py', 'experiments/gdm/install_review.py',
                      'experiments/gdm/approval_review.py'):
             (self.app / name).unlink()
@@ -79,6 +81,7 @@ class GUIInstallTests(unittest.TestCase):
 
     def test_existing_v2_bundle_can_still_be_uninstalled_for_upgrade(self):
         self._install()
+        (self.app / 'gui/vm_install_bridge.py').unlink()
         for name in ('experiments/gdm/portable_build.py', 'experiments/gdm/install_review.py',
                      'experiments/gdm/approval_review.py'):
             (self.app / name).unlink()
@@ -95,6 +98,7 @@ class GUIInstallTests(unittest.TestCase):
 
     def test_existing_v3_bundle_remains_removable_for_upgrade(self):
         self._install()
+        (self.app / 'gui/vm_install_bridge.py').unlink()
         (self.app / 'experiments/gdm/approval_review.py').unlink()
         manifest = self.app / installer.MANIFEST
         record = json.loads(manifest.read_text())
@@ -106,6 +110,26 @@ class GUIInstallTests(unittest.TestCase):
         with contextlib.redirect_stdout(StringIO()):
             installer.uninstall(self.prefix)
         self.assertEqual(installer.check(self.prefix), ('NOT_INSTALLED', []))
+
+    def test_existing_v4_bundle_remains_removable_for_upgrade(self):
+        self._install()
+        (self.app / 'gui/vm_install_bridge.py').unlink()
+        manifest = self.app / installer.MANIFEST
+        record = json.loads(manifest.read_text())
+        record['format'] = 4
+        record['files'] = {key: value for key, value in record['files'].items()
+                           if key in installer.V4_FILES}
+        manifest.write_text(json.dumps(record))
+        self.assertEqual(installer.check(self.prefix), ('INSTALLED', []))
+        with contextlib.redirect_stdout(StringIO()):
+            installer.uninstall(self.prefix)
+        self.assertEqual(installer.check(self.prefix), ('NOT_INSTALLED', []))
+
+    def test_tampered_vm_bridge_refuses_uninstall(self):
+        self._install()
+        (self.app / 'gui/vm_install_bridge.py').write_text('changed helper')
+        with self.assertRaisesRegex(installer.GUIInstallError, 'INCONSISTENT'):
+            installer.uninstall(self.prefix)
 
     def test_tampered_readonly_review_module_refuses_uninstall(self):
         self._install()
