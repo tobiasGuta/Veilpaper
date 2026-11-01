@@ -19,6 +19,7 @@ GDM_RPM_BASELINE = ROOT / 'experiments/gdm/rpm_baseline.py'
 GDM_PORTABLE_BUILDER = ROOT / 'experiments/gdm/portable_build.py'
 GDM_FIXTURE_TRANSACTION = ROOT / 'experiments/gdm/fixture_transaction.py'
 GDM_INSTALL_REVIEW = ROOT / 'experiments/gdm/install_review.py'
+GDM_APPROVAL_REVIEW = ROOT / 'experiments/gdm/approval_review.py'
 EXTENSION_SOURCE = ROOT / 'experiments/lockscreen/lockscreen'
 UUID = 'lockscreen@veilpaper.tobiasguta'
 MAX_IMAGE_BYTES = 25 * 1024 * 1024
@@ -246,6 +247,19 @@ def install_review_login(candidate):
     return module.show(module.review(candidate))
 
 
+def approval_review_login(action, *, candidate=None, expected_sha256):
+    """Produce unprivileged read-only action evidence; never call the GDM writer."""
+    require_user()
+    spec = importlib.util.spec_from_file_location(
+        'veilpaper_approval_evidence', GDM_APPROVAL_REVIEW)
+    if spec is None or spec.loader is None:
+        fail(f'GDM read-only approval reviewer missing: {GDM_APPROVAL_REVIEW}')
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.show(module.inspect_action(
+        action, candidate=candidate, expected_sha256=expected_sha256))
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     subs = parser.add_subparsers(dest='command', required=True)
@@ -271,6 +285,18 @@ def main(argv=None):
     check = login_sub.add_parser('install-check',
         help='Review a GDM candidate and installed RPM baseline without system changes')
     check.add_argument('candidate', type=Path, help='Compiled Veilpaper GDM candidate')
+    approval = login_sub.add_parser('approval-review',
+        help='Read-only GDM action evidence, NEVER grants approval or installs anything')
+    approval_sub = approval.add_subparsers(dest='approval_action', required=True)
+    approval_install = approval_sub.add_parser('install',
+        help='Review exact candidate SHA-256 and existing GDM state, read-only')
+    approval_install.add_argument('candidate', type=Path)
+    approval_install.add_argument('--sha256', required=True,
+        help='Expected SHA-256 of candidate, required for stale-input detection')
+    approval_restore = approval_sub.add_parser('restore',
+        help='Report recovery blockers, NO production restore helper')
+    approval_restore.add_argument('--active-sha256', required=True,
+        help='Expected active theme SHA-256, required for stale-input detection')
     login_build = login_sub.add_parser('build', help='Build candidate without changing GNOME')
     login_build.add_argument('image', type=Path)
     login_build.add_argument('--output', type=Path,
@@ -305,6 +331,13 @@ def main(argv=None):
                     args.baseline.expanduser(), args.candidate.expanduser())
             if args.action == 'install-check':
                 return install_review_login(args.candidate.expanduser())
+            if args.action == 'approval-review':
+                if args.approval_action == 'install':
+                    return approval_review_login(
+                        'install', candidate=args.candidate.expanduser(),
+                        expected_sha256=args.sha256)
+                return approval_review_login(
+                    'restore', expected_sha256=args.active_sha256)
             backend = gdm()
             if args.action == 'build':
                 backend.build(args.image.expanduser(), args.output.expanduser())
