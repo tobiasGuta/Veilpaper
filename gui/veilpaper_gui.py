@@ -23,7 +23,7 @@ except (ImportError, ValueError) as error:
 
 # Allow running from repository checkout and from the user-installed bundle.
 from backend import (lock_image, login_preview, state, set_lock, restore_lock,
-                     prepare_login_candidate)
+                     prepare_login_candidate, discard_login_candidate)
 
 APP_ID = 'me.tobiasguta.Veilpaper'
 APP_VERSION = '0.1.0-dev'
@@ -443,8 +443,18 @@ class VeilpaperWindow(Adw.ApplicationWindow):
             except (OSError, ValueError, GLib.Error) as error:
                 self._toast(f'Unsupported login image: {error}')
                 return
+            # Remove only a previously verified private staging job. If it
+            # has been altered or replaced, keep the current UI state intact
+            # so the user can inspect it instead of silently deleting it.
+            if self._login_candidate is not None:
+                try:
+                    discard_login_candidate(self._login_candidate)
+                except (RuntimeError, OSError, ValueError) as error:
+                    self._toast(f'Previous candidate was preserved: {error}')
+                    return
             self._pending_login = path
             self._login_candidate = None
+            self._login_reset.set_label('Show current')
             self._login_details.set_sensitive(False)
             self._candidate_path_label.set_text('')
             self._candidate_digest_label.set_text('')
@@ -470,6 +480,7 @@ class VeilpaperWindow(Adw.ApplicationWindow):
             self._toast(f'GDM candidate could not be prepared: {error}')
             return
         self._login_candidate = result
+        self._login_reset.set_label('Discard candidate')
         self._candidate_path_label.set_text(str(result.path))
         self._candidate_digest_label.set_text(result.digest)
         self._login_details.set_sensitive(True)
@@ -486,8 +497,15 @@ class VeilpaperWindow(Adw.ApplicationWindow):
         self._toast('Candidate SHA-256 copied.')
 
     def _show_current_login(self, _button):
+        if self._login_candidate is not None:
+            try:
+                discard_login_candidate(self._login_candidate)
+            except (RuntimeError, OSError, ValueError) as error:
+                self._toast(f'Candidate was preserved; could not discard safely: {error}')
+                return
         self._pending_login = None
         self._login_candidate = None
+        self._login_reset.set_label('Show current')
         self._login_details.set_sensitive(False)
         self._candidate_path_label.set_text('')
         self._candidate_digest_label.set_text('')
